@@ -114,6 +114,10 @@ export default function Home() {
     await supabase.from("appointments").update({ status }).eq("id", id);
     refetchAll();
   }
+  async function updateAppointment(id, patch) {
+    await supabase.from("appointments").update(patch).eq("id", id);
+    refetchAll();
+  }
   async function removeAppointment(id) {
     await supabase.from("appointments").delete().eq("id", id);
     refetchAll();
@@ -317,6 +321,17 @@ export default function Home() {
     (a) => a.status !== "completed" && a.status !== "cancelled" && a.date >= todayISO()
   ).length;
 
+  const materialMapForStats = {};
+  materials.forEach((m) => (materialMapForStats[m.id] = m));
+  function costPerUnitForStats(m) {
+    if (!m) return 0;
+    return m.cost_mode === "batch" ? (m.batch_quantity > 0 ? m.batch_cost / m.batch_quantity : 0) : m.per_unit_cost;
+  }
+  const monthMaterialSales = materialSales.filter((s) => s.date.slice(0, 7) === thisMonth);
+  const monthMaterialsRevenue = monthMaterialSales.reduce((sum, s) => sum + Number(s.total), 0);
+  const monthMaterialsCost = monthMaterialSales.reduce((sum, s) => sum + costPerUnitForStats(materialMapForStats[s.material_id]) * s.quantity, 0);
+  const monthMaterialsProfit = monthMaterialsRevenue - monthMaterialsCost;
+
   return (
     <div className="min-h-screen bg-[#FAF7F0]">
       <header className="border-b border-[#1C1B1A] bg-[#FAF7F0] sticky top-0 z-10">
@@ -338,6 +353,7 @@ export default function Home() {
       <main className="max-w-5xl mx-auto px-5 py-6 space-y-6">
         <div className="flex flex-wrap gap-3">
           <StatCard label="This month, lessons" value={money(monthIncomeFromLessons)} accent="#7A8B6F" />
+          <StatCard label="This month, materials" value={money(monthMaterialsProfit)} accent={monthMaterialsProfit >= 0 ? "#7A8B6F" : "#6B2C3E"} />
           <StatCard label="Unpaid invoices" value={money(unpaidInvoicesTotal)} accent="#6B2C3E" />
           <StatCard label="Upcoming lessons" value={upcomingCount} />
           <StatCard label="Active students" value={students.length} />
@@ -366,6 +382,7 @@ export default function Home() {
             studentMap={studentMap}
             services={services}
             onAdd={addAppointment}
+            onUpdate={updateAppointment}
             onSetStatus={setAppointmentStatus}
             onRemove={removeAppointment}
           />

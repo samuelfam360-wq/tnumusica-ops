@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { SectionCard, Button, Field, inputCls } from "./ui";
+import { SectionCard, Button, Field, inputCls, timeRange } from "./ui";
 
 const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -86,7 +86,7 @@ export default function StudentsTab({ students, appointments = [], onAdd, onUpda
                         />
                       </div>
                       <button onClick={() => setExpanded(isOpen ? null : s.id)} className="text-xs text-[#1C1B1A] hover:underline">
-                        {isOpen ? "Hide schedule" : "Show schedule"}
+                        {isOpen ? "Close" : "Edit / view schedule"}
                       </button>
                       <button onClick={() => onRemove(s.id)} className="text-xs text-[#6B2C3E] hover:underline">Remove</button>
                     </div>
@@ -95,6 +95,9 @@ export default function StudentsTab({ students, appointments = [], onAdd, onUpda
                   {isOpen && (
                     <div className="mt-3 pl-1 space-y-3">
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <Field label="Name">
+                          <input className={inputCls} value={s.name} onChange={(e) => onUpdate(s.id, { name: e.target.value })} />
+                        </Field>
                         <Field label="Age">
                           <input type="number" className={inputCls} value={s.age ?? ""} onChange={(e) => onUpdate(s.id, { age: e.target.value === "" ? null : Number(e.target.value) })} />
                         </Field>
@@ -118,7 +121,7 @@ export default function StudentsTab({ students, appointments = [], onAdd, onUpda
                             {schedule.map((a) => (
                               <div key={a.id} className="flex items-center gap-3 text-xs" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
                                 <span className="w-24">{WEEKDAY_NAMES[new Date(a.date + "T00:00:00").getDay()].slice(0, 3)} {a.date}</span>
-                                <span className="w-14">{a.time}</span>
+                                <span className="w-24">{timeRange(a.time, a.duration)}</span>
                                 <span className="text-[#8A8272]">{a.duration} min · {a.location}</span>
                                 {a.status === "completed" && <span className="text-[#4C5A43]">done</span>}
                               </div>

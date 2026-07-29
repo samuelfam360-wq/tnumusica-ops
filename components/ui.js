@@ -4,6 +4,19 @@ export const todayISO = () => new Date().toISOString().slice(0, 10);
 export const money = (n) =>
   "RM " + (Number(n) || 0).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+export function endTime(time, durationMinutes) {
+  if (!time) return "";
+  const [h, m] = time.split(":").map(Number);
+  const total = h * 60 + m + (Number(durationMinutes) || 0);
+  const eh = Math.floor((total % (24 * 60)) / 60);
+  const em = total % 60;
+  return `${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}`;
+}
+
+export function timeRange(time, durationMinutes) {
+  return `${time}–${endTime(time, durationMinutes)}`;
+}
+
 export function KeyNav({ tabs, active, onChange }) {
   return (
     <div className="flex border border-[#1C1B1A] rounded-lg overflow-hidden shadow-sm">
