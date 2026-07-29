@@ -3,6 +3,7 @@ import { jsPDF } from "jspdf";
 import { SectionCard, Button, Field, inputCls, money, todayISO } from "./ui";
 
 function downloadInvoicePdf(invoice, student, biz = {}) {
+  const isPaid = invoice.status === "paid";
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const left = 48;
   let y = 56;
@@ -30,19 +31,25 @@ function downloadInvoicePdf(invoice, student, biz = {}) {
   y = Math.max(y + 56, headerY + 20);
   doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
-  doc.text("INVOICE", left, y);
+  doc.text(isPaid ? "RECEIPT" : "INVOICE", left, y);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   y += 20;
-  doc.text(`Invoice #: ${invoice.number}`, left, y);
+  doc.text(`${isPaid ? "Receipt" : "Invoice"} #: ${invoice.number}`, left, y);
   y += 14;
   doc.text(`Date: ${invoice.date}`, left, y);
   y += 14;
-  doc.text(`Status: ${invoice.status === "paid" ? `Paid (${invoice.paid_date || ""})` : "Unpaid"}`, left, y);
+  if (isPaid) {
+    doc.setTextColor(76, 90, 67);
+    doc.text(`Payment received on ${invoice.paid_date || invoice.date}`, left, y);
+    doc.setTextColor(0);
+  } else {
+    doc.text("Status: Unpaid", left, y);
+  }
 
   y += 28;
   doc.setFont("helvetica", "bold");
-  doc.text("Bill to:", left, y);
+  doc.text(isPaid ? "Received from:" : "Bill to:", left, y);
   doc.setFont("helvetica", "normal");
   y += 14;
   doc.text(student?.name || "Unknown student", left, y);
@@ -77,10 +84,10 @@ function downloadInvoicePdf(invoice, student, biz = {}) {
   y += 22;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
-  doc.text("Total", left, y);
+  doc.text(isPaid ? "Amount received" : "Total", left, y);
   doc.text(`RM ${Number(invoice.total).toFixed(2)}`, 480, y, { align: "right" });
 
-  if (biz.bank_name || biz.bank_account_number) {
+  if (!isPaid && (biz.bank_name || biz.bank_account_number)) {
     y += 40;
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
@@ -92,15 +99,22 @@ function downloadInvoicePdf(invoice, student, biz = {}) {
     if (biz.bank_account_number) { doc.text(`Account number: ${biz.bank_account_number}`, left, y); y += 14; }
   }
 
-  if (biz.payment_terms) {
+  if (!isPaid && biz.payment_terms) {
     y += 20;
     doc.setFontSize(9);
     doc.setTextColor(120);
     doc.text(biz.payment_terms, left, y);
     doc.setTextColor(0);
   }
+  if (isPaid) {
+    y += 30;
+    doc.setFontSize(9);
+    doc.setTextColor(120);
+    doc.text("Thank you for your payment.", left, y);
+    doc.setTextColor(0);
+  }
 
-  doc.save(`${invoice.number}.pdf`);
+  doc.save(`${isPaid ? "Receipt" : "Invoice"}-${invoice.number}.pdf`);
 }
 
 export default function InvoicesTab({ invoices, students, studentMap, appointments, businessSettings, onAddManual, onGenerateMonthly, onMarkPaid, onRemove }) {
@@ -217,7 +231,9 @@ export default function InvoicesTab({ invoices, students, studentMap, appointmen
                   ) : (
                     <button onClick={() => onMarkPaid(i.id)} className="text-xs text-[#4C5A43] hover:underline">Mark paid</button>
                   )}
-                  <button onClick={() => downloadInvoicePdf(i, studentMap[i.student_id], businessSettings)} className="text-xs text-[#1C1B1A] hover:underline">Download PDF</button>
+                  <button onClick={() => downloadInvoicePdf(i, studentMap[i.student_id], businessSettings)} className="text-xs text-[#1C1B1A] hover:underline">
+                    {i.status === "paid" ? "Download Receipt" : "Download Invoice"}
+                  </button>
                   <button onClick={() => onRemove(i.id)} className="text-xs text-[#8A8272] hover:underline">Remove</button>
                 </div>
               </div>
