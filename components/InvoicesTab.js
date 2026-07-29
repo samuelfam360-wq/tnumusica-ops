@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { jsPDF } from "jspdf";
-import { SectionCard, Button, Field, inputCls, money, todayISO } from "./ui";
+import { SectionCard, Button, Field, inputCls, money, todayISO, SearchableSelect, SearchBox } from "./ui";
 
 function downloadInvoicePdf(invoice, student, biz = {}) {
   const isPaid = invoice.status === "paid";
@@ -122,6 +122,7 @@ function downloadInvoicePdf(invoice, student, biz = {}) {
 }
 
 export default function InvoicesTab({ invoices, students, studentMap, appointments, businessSettings, onAddManual, onGenerateMonthly, onMarkPaid, onMarkUnpaid, onRemove }) {
+  const [invoiceSearch, setInvoiceSearch] = useState("");
   const [form, setForm] = useState({
     studentId: students[0]?.id || "",
     date: todayISO(),
@@ -163,7 +164,14 @@ export default function InvoicesTab({ invoices, students, studentMap, appointmen
     onGenerateMonthly(genForm.studentId, genForm.period);
   }
 
-  const sorted = [...invoices].sort((a, b) => b.date.localeCompare(a.date));
+  const sorted = [...invoices]
+    .filter((i) => {
+      if (!invoiceSearch.trim()) return true;
+      const q = invoiceSearch.trim().toLowerCase();
+      const studentName = studentMap[i.student_id]?.name || "";
+      return studentName.toLowerCase().includes(q) || i.number.toLowerCase().includes(q);
+    })
+    .sort((a, b) => b.date.localeCompare(a.date));
 
   const preview = useMemo(() => {
     const eligible = appointments.filter(
@@ -185,9 +193,12 @@ export default function InvoicesTab({ invoices, students, studentMap, appointmen
           <form onSubmit={submitGenerate} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <Field label="Student">
-                <select className={inputCls} value={genForm.studentId} onChange={(e) => setGenForm({ ...genForm, studentId: e.target.value })}>
-                  {students.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
+                <SearchableSelect
+                  options={students.map((s) => ({ value: s.id, label: s.name }))}
+                  value={genForm.studentId}
+                  onChange={(v) => setGenForm({ ...genForm, studentId: v })}
+                  placeholder="Search student…"
+                />
               </Field>
               <Field label="Month">
                 <input type="month" className={inputCls} value={genForm.period} onChange={(e) => setGenForm({ ...genForm, period: e.target.value })} />
@@ -212,9 +223,12 @@ export default function InvoicesTab({ invoices, students, studentMap, appointmen
           <form onSubmit={submitManual} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <Field label="Student">
-                <select className={inputCls} value={form.studentId} onChange={(e) => setForm({ ...form, studentId: e.target.value })}>
-                  {students.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
+                <SearchableSelect
+                  options={students.map((s) => ({ value: s.id, label: s.name }))}
+                  value={form.studentId}
+                  onChange={(v) => setForm({ ...form, studentId: v })}
+                  placeholder="Search student…"
+                />
               </Field>
               <Field label="Date">
                 <input type="date" className={inputCls} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
@@ -254,7 +268,10 @@ export default function InvoicesTab({ invoices, students, studentMap, appointmen
         )}
       </SectionCard>
 
-      <SectionCard title={`Invoices (${invoices.length})`}>
+      <SectionCard
+        title={`Invoices (${invoices.length})`}
+        action={<SearchBox value={invoiceSearch} onChange={setInvoiceSearch} placeholder="Search by student or invoice #…" />}
+      >
         {sorted.length === 0 ? (
           <p className="text-sm text-[#8A8272]">No invoices yet.</p>
         ) : (

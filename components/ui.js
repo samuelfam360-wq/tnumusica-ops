@@ -1,3 +1,56 @@
+import { useState } from "react";
+
+export function SearchableSelect({ options, value, onChange, placeholder }) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const selected = options.find((o) => o.value === value);
+  const filtered = query.trim()
+    ? options.filter((o) => o.label.toLowerCase().includes(query.trim().toLowerCase()))
+    : options;
+
+  return (
+    <div className="relative">
+      <input
+        className={inputCls + " w-full"}
+        placeholder={placeholder || "Type to search…"}
+        value={open ? query : (selected?.label || "")}
+        onFocus={() => { setOpen(true); setQuery(""); }}
+        onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      />
+      {open && (
+        <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto bg-white border border-[#D8D0BE] rounded-md shadow-md">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-[#8A8272]">No matches</div>
+          ) : (
+            filtered.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                onMouseDown={() => { onChange(o.value); setOpen(false); }}
+                className="w-full text-left px-3 py-1.5 text-sm hover:bg-[#F3EEE2]"
+              >
+                {o.label}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function SearchBox({ value, onChange, placeholder }) {
+  return (
+    <input
+      className={inputCls + " w-full sm:w-64"}
+      placeholder={placeholder || "Search…"}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
+}
+
 export const LOCATIONS = ["Play Studio", "Xecleration", "Online", "Other"];
 
 export const todayISO = () => {

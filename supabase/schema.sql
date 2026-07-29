@@ -173,3 +173,19 @@ create policy "allowed users full access" on business_settings
   with check (exists (select 1 from allowed_users au where au.email = auth.email()));
 
 grant select, insert, update, delete on business_settings to authenticated;
+
+-- ---------- Unavailable days (teacher away / blocked out) ----------
+create table if not exists unavailable_dates (
+  date date primary key,
+  reason text default '',
+  created_at timestamptz default now()
+);
+
+alter table unavailable_dates enable row level security;
+
+create policy "allowed users full access" on unavailable_dates
+  for all
+  using (exists (select 1 from allowed_users au where au.email = auth.email()))
+  with check (exists (select 1 from allowed_users au where au.email = auth.email()));
+
+grant select, insert, update, delete on unavailable_dates to authenticated;

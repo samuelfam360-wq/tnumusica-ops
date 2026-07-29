@@ -23,6 +23,7 @@ export default function Home() {
   const [materials, setMaterials] = useState([]);
   const [materialSales, setMaterialSales] = useState([]);
   const [businessSettings, setBusinessSettings] = useState(null);
+  const [unavailableDates, setUnavailableDates] = useState([]);
   const [dataLoaded, setDataLoaded] = useState(false);
 
   useEffect(() => {
@@ -44,7 +45,7 @@ export default function Home() {
   }, [session]);
 
   async function refetchAll() {
-    const [s, a, inv, svc, mat, matSales, biz] = await Promise.all([
+    const [s, a, inv, svc, mat, matSales, biz, unavail] = await Promise.all([
       supabase.from("students").select("*").order("name"),
       supabase.from("appointments").select("*").order("date").order("time"),
       supabase.from("invoices").select("*").order("date", { ascending: false }),
@@ -52,6 +53,7 @@ export default function Home() {
       supabase.from("materials").select("*").order("name"),
       supabase.from("material_sales").select("*").order("date", { ascending: false }),
       supabase.from("business_settings").select("*").eq("id", "main").maybeSingle(),
+      supabase.from("unavailable_dates").select("*"),
     ]);
     setStudents(s.data || []);
     setAppointments(a.data || []);
@@ -64,6 +66,7 @@ export default function Home() {
       bank_name: "", bank_account_name: "", bank_account_number: "",
       license_info: "", payment_terms: "", logo_base64: "",
     });
+    setUnavailableDates(unavail.data || []);
     setDataLoaded(true);
   }
 
@@ -120,6 +123,10 @@ export default function Home() {
   }
   async function updateAppointmentSeries(seriesId, patch) {
     await supabase.from("appointments").update(patch).eq("series_id", seriesId);
+    refetchAll();
+  }
+  async function bulkUpdateAppointments(ids, patch) {
+    await supabase.from("appointments").update(patch).in("id", ids);
     refetchAll();
   }
   async function rescheduleAppointment(original, { date, time, reason }) {
@@ -217,6 +224,15 @@ export default function Home() {
   }
   async function removeMaterialSale(id) {
     await supabase.from("material_sales").delete().eq("id", id);
+    refetchAll();
+  }
+
+  async function markUnavailable(date, reason) {
+    await supabase.from("unavailable_dates").upsert({ date, reason: reason || "" });
+    refetchAll();
+  }
+  async function unmarkUnavailable(date) {
+    await supabase.from("unavailable_dates").delete().eq("date", date);
     refetchAll();
   }
 
@@ -407,9 +423,13 @@ export default function Home() {
             students={students}
             studentMap={studentMap}
             services={services}
+            unavailableDates={unavailableDates}
+            onMarkUnavailable={markUnavailable}
+            onUnmarkUnavailable={unmarkUnavailable}
             onAdd={addAppointment}
             onUpdate={updateAppointment}
             onUpdateSeries={updateAppointmentSeries}
+            onBulkUpdate={bulkUpdateAppointments}
             onReschedule={rescheduleAppointment}
             onSetStatus={setAppointmentStatus}
             onRemove={removeAppointment}

@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { SectionCard, Button, Field, inputCls, LOCATIONS, todayISO, money, StatusPill, endTime, timeRange } from "./ui";
+import { useState, useMemo, useEffect } from "react";
+import { SectionCard, Button, Field, inputCls, LOCATIONS, todayISO, money, StatusPill, endTime, timeRange, SearchableSelect } from "./ui";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -27,13 +27,18 @@ const blankForm = (students) => ({
   notes: "",
 });
 
-export default function CalendarTab({ appointments, students, studentMap, services, onAdd, onUpdate, onUpdateSeries, onReschedule, onSetStatus, onRemove }) {
+export default function CalendarTab({ appointments, students, studentMap, services, unavailableDates, onMarkUnavailable, onUnmarkUnavailable, onAdd, onUpdate, onUpdateSeries, onBulkUpdate, onReschedule, onSetStatus, onRemove }) {
   const [form, setForm] = useState(() => blankForm(students));
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState(null);
   const [applyToSeries, setApplyToSeries] = useState(false);
   const [reschedulingId, setReschedulingId] = useState(null);
   const [reschedForm, setReschedForm] = useState(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkStudentId, setBulkStudentId] = useState(students[0]?.id || "");
+  const [bulkSelected, setBulkSelected] = useState({});
+  const [bulkPatch, setBulkPatch] = useState({ time: "", duration: "", location: "", rate: "" });
+  const [unavailReason, setUnavailReason] = useState("");
 
   const [viewMonth, setViewMonth] = useState(() => {
     const t = new Date();
@@ -65,8 +70,59 @@ export default function CalendarTab({ appointments, students, studentMap, servic
       .sort((a, b) => a.time.localeCompare(b.time));
   }, [appointments, selectedDate]);
 
+  const unavailMap = useMemo(() => {
+    const map = {};
+    (unavailableDates || []).forEach((u) => (map[u.date] = u));
+    return map;
+  }, [unavailableDates]);
+
+  const selectedUnavail = unavailMap[selectedDate];
+
+  useEffect(() => {
+    setUnavailReason(selectedUnavail?.reason || "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate]);
+
   function findRescheduledTo(id) {
     return appointments.find((a) => a.rescheduled_from === id);
+  }
+
+  const bulkLessons = useMemo(() => {
+    return appointments
+      .filter((a) => a.student_id === bulkStudentId && a.status === "scheduled" && a.date >= todayISO())
+      .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  }, [appointments, bulkStudentId]);
+
+  useEffect(() => {
+    if (!bulkOpen) return;
+    const next = {};
+    bulkLessons.forEach((a) => (next[a.id] = true));
+    setBulkSelected(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bulkOpen, bulkStudentId]);
+
+  function openBulkFor(studentId) {
+    setBulkOpen(true);
+    setBulkStudentId(studentId);
+    setBulkPatch({ time: "", duration: "", location: "", rate: "" });
+  }
+  function toggleBulkAll(checked) {
+    const next = {};
+    bulkLessons.forEach((a) => (next[a.id] = checked));
+    setBulkSelected(next);
+  }
+  function submitBulk(e) {
+    e.preventDefault();
+    const ids = Object.entries(bulkSelected).filter(([, v]) => v).map(([k]) => k);
+    if (ids.length === 0) return;
+    const patch = {};
+    if (bulkPatch.time) patch.time = bulkPatch.time;
+    if (bulkPatch.duration) patch.duration = Number(bulkPatch.duration);
+    if (bulkPatch.location) patch.location = bulkPatch.location;
+    if (bulkPatch.rate) patch.rate = Number(bulkPatch.rate);
+    if (Object.keys(patch).length === 0) return;
+    onBulkUpdate(ids, patch);
+    setBulkOpen(false);
   }
 
   function submit(e) {
@@ -173,17 +229,42 @@ export default function CalendarTab({ appointments, students, studentMap, servic
     setViewMonth(new Date(firstOfMonth.getFullYear(), firstOfMonth.getMonth() + delta, 1));
   }
 
+  const needsReschedule = useMemo(() => {
+    return appointments
+      .filter((a) => a.status === "scheduled" && unavailMap[a.date])
+      .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  }, [appointments, unavailMap]);
+
   return (
     <div className="space-y-4">
+      {needsReschedule.length > 0 && (
+        <SectionCard title="Needs rescheduling">
+          <div className="space-y-2">
+            {needsReschedule.map((a) => (
+              <div key={a.id} className="flex items-center justify-between text-sm">
+                <div>
+                  <span className="font-medium">{studentMap[a.student_id]?.name}</span>
+                  <span className="text-[#8A8272]"> · {a.date} {timeRange(a.time, a.duration)} · marked unavailable{unavailMap[a.date]?.reason ? ` (${unavailMap[a.date].reason})` : ""}</span>
+                </div>
+                <button onClick={() => { setSelectedDate(a.date); startReschedule(a); }} className="text-xs text-[#8A6D3B] hover:underline">Reschedule</button>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      )}
+
       <SectionCard title="Add to schedule">
         {students.length === 0 ? (
           <p className="text-sm text-[#8A8272]">Add a student first, on the Students tab.</p>
         ) : (
           <form onSubmit={submit} className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <Field label="Student">
-              <select className={inputCls} value={form.studentId} onChange={(e) => setForm({ ...form, studentId: e.target.value })}>
-                {students.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+              <SearchableSelect
+                options={students.map((s) => ({ value: s.id, label: s.name }))}
+                value={form.studentId}
+                onChange={(v) => setForm({ ...form, studentId: v })}
+                placeholder="Search student…"
+              />
             </Field>
             <Field label="Date">
               <input type="date" className={inputCls} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
@@ -239,6 +320,68 @@ export default function CalendarTab({ appointments, students, studentMap, servic
       </SectionCard>
 
       <SectionCard
+        title="Bulk edit a student's upcoming lessons"
+        action={
+          <button onClick={() => setBulkOpen(!bulkOpen)} className="text-xs text-[#1C1B1A] hover:underline">
+            {bulkOpen ? "Close" : "Open"}
+          </button>
+        }
+      >
+        {!bulkOpen ? (
+          <p className="text-sm text-[#8A8272]">Fix a wrong time/duration/rate across a student's whole upcoming schedule in one go — useful when something was keyed in wrong for every week.</p>
+        ) : (
+          <form onSubmit={submitBulk} className="space-y-3">
+            <Field label="Student">
+              <SearchableSelect
+                options={students.map((s) => ({ value: s.id, label: s.name }))}
+                value={bulkStudentId}
+                onChange={setBulkStudentId}
+                placeholder="Search student…"
+              />
+            </Field>
+
+            {bulkLessons.length === 0 ? (
+              <p className="text-sm text-[#8A8272]">No upcoming scheduled lessons for this student.</p>
+            ) : (
+              <>
+                <div className="space-y-1 max-h-48 overflow-y-auto border border-[#EDE7DB] rounded-md p-2">
+                  <label className="flex items-center gap-2 text-xs font-medium pb-1 border-b border-[#EDE7DB] mb-1">
+                    <input type="checkbox" checked={bulkLessons.every((a) => bulkSelected[a.id])} onChange={(e) => toggleBulkAll(e.target.checked)} />
+                    Select all ({bulkLessons.length})
+                  </label>
+                  {bulkLessons.map((a) => (
+                    <label key={a.id} className="flex items-center gap-2 text-xs">
+                      <input type="checkbox" checked={!!bulkSelected[a.id]} onChange={(e) => setBulkSelected({ ...bulkSelected, [a.id]: e.target.checked })} />
+                      <span style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{a.date} {timeRange(a.time, a.duration)}</span>
+                    </label>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <Field label="New time (blank = keep)">
+                    <input type="time" className={inputCls} value={bulkPatch.time} onChange={(e) => setBulkPatch({ ...bulkPatch, time: e.target.value })} />
+                  </Field>
+                  <Field label="New duration (blank = keep)">
+                    <input type="number" className={inputCls} value={bulkPatch.duration} onChange={(e) => setBulkPatch({ ...bulkPatch, duration: e.target.value })} />
+                  </Field>
+                  <Field label="New location (blank = keep)">
+                    <select className={inputCls} value={bulkPatch.location} onChange={(e) => setBulkPatch({ ...bulkPatch, location: e.target.value })}>
+                      <option value="">— keep —</option>
+                      {LOCATIONS.map((l) => <option key={l}>{l}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="New rate RM (blank = keep)">
+                    <input type="number" className={inputCls} value={bulkPatch.rate} onChange={(e) => setBulkPatch({ ...bulkPatch, rate: e.target.value })} />
+                  </Field>
+                </div>
+                <Button type="submit">Apply to selected lessons</Button>
+              </>
+            )}
+          </form>
+        )}
+      </SectionCard>
+
+      <SectionCard
         title={monthLabel}
         action={
           <div className="flex items-center gap-2">
@@ -263,24 +406,61 @@ export default function CalendarTab({ appointments, students, studentMap, servic
             const count = countsByDate[iso] || 0;
             const isToday = iso === todayISO();
             const isSelected = iso === selectedDate;
+            const isUnavailable = !!unavailMap[iso];
             return (
               <button
                 key={i}
                 onClick={() => setSelectedDate(iso)}
                 className={[
                   "aspect-square rounded-md flex flex-col items-center justify-center text-sm relative transition-colors",
-                  isSelected ? "bg-[#1C1B1A] text-[#FAF7F0]" : isToday ? "bg-[#F3EEE2] border border-[#B8935F]" : "hover:bg-[#F3EEE2]",
+                  isSelected
+                    ? "bg-[#1C1B1A] text-[#FAF7F0]"
+                    : isUnavailable
+                    ? "bg-[#F6EBEE] border border-[#6B2C3E] text-[#6B2C3E]"
+                    : isToday
+                    ? "bg-[#F3EEE2] border border-[#B8935F]"
+                    : "hover:bg-[#F3EEE2]",
                 ].join(" ")}
               >
                 <span>{d.getDate()}</span>
-                {count > 0 && <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full" style={{ background: "#B8935F" }} />}
+                {count > 0 && <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full" style={{ background: isUnavailable ? "#6B2C3E" : "#B8935F" }} />}
               </button>
             );
           })}
         </div>
+        <div className="flex items-center gap-4 mt-2 text-[11px] text-[#8A8272]">
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded border border-[#6B2C3E] bg-[#F6EBEE] inline-block" /> Unavailable</span>
+          <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#B8935F] inline-block" /> Has lessons</span>
+        </div>
       </SectionCard>
 
       <SectionCard title={`Schedule — ${new Date(selectedDate + "T00:00:00").toLocaleDateString("en-MY", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`}>
+        <div className="mb-4 pb-4 border-b border-[#EDE7DB]">
+          {selectedUnavail ? (
+            <div className="flex items-center justify-between bg-[#F6EBEE] border border-[#6B2C3E] rounded-md px-3 py-2">
+              <div className="text-sm text-[#6B2C3E]">
+                <span className="font-medium">Marked unavailable</span>
+                {selectedUnavail.reason && ` — ${selectedUnavail.reason}`}
+              </div>
+              <button onClick={() => onUnmarkUnavailable(selectedDate)} className="text-xs text-[#6B2C3E] hover:underline">Remove</button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <input
+                className={inputCls + " flex-1"}
+                placeholder="Reason (optional) — e.g. Out of town"
+                value={unavailReason}
+                onChange={(e) => setUnavailReason(e.target.value)}
+              />
+              <Button variant="secondary" onClick={() => onMarkUnavailable(selectedDate, unavailReason)}>Mark this day unavailable</Button>
+            </div>
+          )}
+          {selectedUnavail && scheduleForSelected.filter((a) => a.status === "scheduled").length > 0 && (
+            <div className="mt-2 text-sm text-[#6B2C3E] font-medium">
+              ⚠ {scheduleForSelected.filter((a) => a.status === "scheduled").length} lesson(s) below still need to be rescheduled.
+            </div>
+          )}
+        </div>
         {scheduleForSelected.length === 0 ? (
           <p className="text-sm text-[#8A8272]">Nothing scheduled this day.</p>
         ) : (
@@ -292,9 +472,12 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                   <form key={a.id} onSubmit={(e) => saveEdit(e, a.series_id)} className="border border-[#B8935F] rounded-md p-3 space-y-2">
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       <Field label="Student">
-                        <select className={inputCls} value={editForm.studentId} onChange={(e) => setEditForm({ ...editForm, studentId: e.target.value })}>
-                          {students.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </select>
+                        <SearchableSelect
+                          options={students.map((s) => ({ value: s.id, label: s.name }))}
+                          value={editForm.studentId}
+                          onChange={(v) => setEditForm({ ...editForm, studentId: v })}
+                          placeholder="Search student…"
+                        />
                       </Field>
                       <Field label="Date">
                         <input type="date" className={inputCls} value={editForm.date} disabled={applyToSeries} onChange={(e) => setEditForm({ ...editForm, date: e.target.value })} />
@@ -392,6 +575,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                       </>
                     )}
                     <button onClick={() => startEdit(a)} className="text-xs text-[#1C1B1A] hover:underline">Edit</button>
+                    <button onClick={() => openBulkFor(a.student_id)} className="text-xs text-[#1C1B1A] hover:underline">Bulk edit</button>
                     <button onClick={() => onRemove(a.id)} className="text-xs text-[#8A8272] hover:underline">Remove</button>
                   </div>
                 </div>

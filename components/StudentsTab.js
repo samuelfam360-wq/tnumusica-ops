@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { SectionCard, Button, Field, inputCls, timeRange } from "./ui";
+import { SectionCard, Button, Field, inputCls, timeRange, SearchBox } from "./ui";
 
 const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export default function StudentsTab({ students, appointments = [], onAdd, onUpdate, onRemove }) {
   const [form, setForm] = useState({ name: "", rate: "", age: "", grade: "", course: "", notes: "" });
   const [expanded, setExpanded] = useState(null);
+  const [search, setSearch] = useState("");
 
   function submit(e) {
     e.preventDefault();
@@ -55,12 +56,21 @@ export default function StudentsTab({ students, appointments = [], onAdd, onUpda
         </form>
       </SectionCard>
 
-      <SectionCard title={`Students (${students.length})`}>
-        {students.length === 0 ? (
-          <p className="text-sm text-[#8A8272]">No students yet.</p>
+      <SectionCard
+        title={`Students (${students.length})`}
+        action={<SearchBox value={search} onChange={setSearch} placeholder="Search by name, grade, course…" />}
+      >
+        {(() => {
+          const filtered = students.filter((s) => {
+            if (!search.trim()) return true;
+            const q = search.trim().toLowerCase();
+            return (s.name || "").toLowerCase().includes(q) || (s.grade || "").toLowerCase().includes(q) || (s.course || "").toLowerCase().includes(q);
+          });
+          return filtered.length === 0 ? (
+          <p className="text-sm text-[#8A8272]">No students match.</p>
         ) : (
           <div className="divide-y divide-[#EDE7DB]">
-            {students.map((s) => {
+            {filtered.map((s) => {
               const schedule = scheduleFor(s.id);
               const isOpen = expanded === s.id;
               return (
@@ -135,7 +145,8 @@ export default function StudentsTab({ students, appointments = [], onAdd, onUpda
               );
             })}
           </div>
-        )}
+        );
+        })()}
       </SectionCard>
     </div>
   );

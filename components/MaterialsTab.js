@@ -1,7 +1,9 @@
 import { useState, useMemo } from "react";
-import { SectionCard, Button, Field, inputCls, money, todayISO } from "./ui";
+import { SectionCard, Button, Field, inputCls, money, todayISO, SearchableSelect, SearchBox } from "./ui";
 
 export default function MaterialsTab({ materials, sales, students, studentMap, onAddMaterial, onRemoveMaterial, onAddSale, onRemoveSale }) {
+  const [salesSearch, setSalesSearch] = useState("");
+  const [productsSearch, setProductsSearch] = useState("");
   const [form, setForm] = useState({
     name: "",
     notes: "",
@@ -66,7 +68,15 @@ export default function MaterialsTab({ materials, sales, students, studentMap, o
     });
   }, [materials, sales]);
 
-  const sortedSales = [...sales].sort((a, b) => b.date.localeCompare(a.date));
+  const sortedSales = [...sales]
+    .filter((s) => {
+      if (!salesSearch.trim()) return true;
+      const q = salesSearch.trim().toLowerCase();
+      const productName = materials.find((m) => m.id === s.material_id)?.name || "";
+      const studentName = studentMap[s.student_id]?.name || "";
+      return productName.toLowerCase().includes(q) || studentName.toLowerCase().includes(q);
+    })
+    .sort((a, b) => b.date.localeCompare(a.date));
   const materialMap = useMemo(() => {
     const m = {};
     materials.forEach((x) => (m[x.id] = x));
@@ -115,9 +125,12 @@ export default function MaterialsTab({ materials, sales, students, studentMap, o
         ) : (
           <form onSubmit={submitSale} className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
             <Field label="Product">
-              <select className={inputCls} value={saleForm.materialId} onChange={(e) => setSaleForm({ ...saleForm, materialId: e.target.value })}>
-                {materials.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </select>
+              <SearchableSelect
+                options={materials.map((m) => ({ value: m.id, label: m.name }))}
+                value={saleForm.materialId}
+                onChange={(v) => setSaleForm({ ...saleForm, materialId: v })}
+                placeholder="Search product…"
+              />
             </Field>
             <Field label="Sale type">
               <select className={inputCls} value={saleForm.saleType} onChange={(e) => setSaleForm({ ...saleForm, saleType: e.target.value })}>
@@ -127,10 +140,12 @@ export default function MaterialsTab({ materials, sales, students, studentMap, o
             </Field>
             {saleForm.saleType === "individual" && students.length > 0 && (
               <Field label="Student (optional)">
-                <select className={inputCls} value={saleForm.studentId} onChange={(e) => setSaleForm({ ...saleForm, studentId: e.target.value })}>
-                  <option value="">—</option>
-                  {students.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
+                <SearchableSelect
+                  options={[{ value: "", label: "—" }, ...students.map((s) => ({ value: s.id, label: s.name }))]}
+                  value={saleForm.studentId}
+                  onChange={(v) => setSaleForm({ ...saleForm, studentId: v })}
+                  placeholder="Search student…"
+                />
               </Field>
             )}
             <Field label="Quantity">
@@ -149,12 +164,19 @@ export default function MaterialsTab({ materials, sales, students, studentMap, o
         )}
       </SectionCard>
 
-      <SectionCard title={`Products (${materials.length})`}>
-        {summaries.length === 0 ? (
+      <SectionCard
+        title={`Products (${materials.length})`}
+        action={<SearchBox value={productsSearch} onChange={setProductsSearch} placeholder="Search products…" />}
+      >
+        {(() => {
+          const filteredSummaries = summaries.filter(({ material: m }) =>
+            !productsSearch.trim() || m.name.toLowerCase().includes(productsSearch.trim().toLowerCase())
+          );
+          return filteredSummaries.length === 0 ? (
           <p className="text-sm text-[#8A8272]">No products yet.</p>
         ) : (
           <div className="divide-y divide-[#EDE7DB]">
-            {summaries.map(({ material: m, unitsSold, revenue, costIncurred, profit }) => (
+            {filteredSummaries.map(({ material: m, unitsSold, revenue, costIncurred, profit }) => (
               <div key={m.id} className="py-3">
                 <div className="flex items-center justify-between">
                   <div>
@@ -174,10 +196,14 @@ export default function MaterialsTab({ materials, sales, students, studentMap, o
               </div>
             ))}
           </div>
-        )}
+        );
+        })()}
       </SectionCard>
 
-      <SectionCard title={`Sales log (${sales.length})`}>
+      <SectionCard
+        title={`Sales log (${sales.length})`}
+        action={<SearchBox value={salesSearch} onChange={setSalesSearch} placeholder="Search by product or student…" />}
+      >
         {sortedSales.length === 0 ? (
           <p className="text-sm text-[#8A8272]">No sales logged yet.</p>
         ) : (
