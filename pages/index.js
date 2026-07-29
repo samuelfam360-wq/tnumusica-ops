@@ -82,8 +82,8 @@ export default function Home() {
     await supabase.from("students").insert(payload);
     refetchAll();
   }
-  async function updateStudentRate(id, rate) {
-    await supabase.from("students").update({ rate: Number(rate) || 0 }).eq("id", id);
+  async function updateStudent(id, patch) {
+    await supabase.from("students").update(patch).eq("id", id);
     refetchAll();
   }
   async function removeStudent(id) {
@@ -161,6 +161,10 @@ export default function Home() {
   }
   async function markInvoicePaid(id) {
     await supabase.from("invoices").update({ status: "paid", paid_date: todayISO() }).eq("id", id);
+    refetchAll();
+  }
+  async function markInvoiceUnpaid(id) {
+    await supabase.from("invoices").update({ status: "unpaid", paid_date: null }).eq("id", id);
     refetchAll();
   }
   async function removeInvoice(id) {
@@ -367,7 +371,7 @@ export default function Home() {
           />
         )}
         {tab === "students" && (
-          <StudentsTab students={students} onAdd={addStudent} onUpdateRate={updateStudentRate} onRemove={removeStudent} />
+          <StudentsTab students={students} appointments={appointments} onAdd={addStudent} onUpdate={updateStudent} onRemove={removeStudent} />
         )}
         {tab === "rates" && (
           <RatesTab services={services} onAdd={addService} onUpdate={updateService} onRemove={removeService} />
@@ -397,6 +401,7 @@ export default function Home() {
             onAddManual={addManualInvoice}
             onGenerateMonthly={generateMonthlyInvoice}
             onMarkPaid={markInvoicePaid}
+            onMarkUnpaid={markInvoiceUnpaid}
             onRemove={removeInvoice}
           />
         )}

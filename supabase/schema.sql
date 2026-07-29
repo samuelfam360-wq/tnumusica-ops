@@ -29,6 +29,9 @@ create table if not exists students (
   name text not null,
   rate numeric not null default 0,
   notes text default '',
+  age int,
+  grade text default '',
+  course text default '',
   created_at timestamptz default now()
 );
 
