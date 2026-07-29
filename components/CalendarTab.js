@@ -15,6 +15,16 @@ function newId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function addDays(dateStr, days) {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + Number(days));
+  return toISO(d);
+}
+
+function weekdayAbbrev(dateStr) {
+  return WEEKDAY_LABELS[new Date(dateStr + "T00:00:00").getDay()];
+}
+
 const blankForm = (students) => ({
   studentId: students[0]?.id || "",
   date: todayISO(),
@@ -37,7 +47,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkStudentId, setBulkStudentId] = useState(students[0]?.id || "");
   const [bulkSelected, setBulkSelected] = useState({});
-  const [bulkPatch, setBulkPatch] = useState({ time: "", duration: "", location: "", rate: "" });
+  const [bulkPatch, setBulkPatch] = useState({ time: "", duration: "", location: "", rate: "", shiftDays: "" });
   const [unavailReason, setUnavailReason] = useState("");
 
   const [viewMonth, setViewMonth] = useState(() => {
@@ -104,7 +114,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
   function openBulkFor(studentId) {
     setBulkOpen(true);
     setBulkStudentId(studentId);
-    setBulkPatch({ time: "", duration: "", location: "", rate: "" });
+    setBulkPatch({ time: "", duration: "", location: "", rate: "", shiftDays: "" });
   }
   function toggleBulkAll(checked) {
     const next = {};
@@ -113,15 +123,20 @@ export default function CalendarTab({ appointments, students, studentMap, servic
   }
   function submitBulk(e) {
     e.preventDefault();
-    const ids = Object.entries(bulkSelected).filter(([, v]) => v).map(([k]) => k);
-    if (ids.length === 0) return;
-    const patch = {};
-    if (bulkPatch.time) patch.time = bulkPatch.time;
-    if (bulkPatch.duration) patch.duration = Number(bulkPatch.duration);
-    if (bulkPatch.location) patch.location = bulkPatch.location;
-    if (bulkPatch.rate) patch.rate = Number(bulkPatch.rate);
-    if (Object.keys(patch).length === 0) return;
-    onBulkUpdate(ids, patch);
+    const selectedAppointments = bulkLessons.filter((a) => bulkSelected[a.id]);
+    if (selectedAppointments.length === 0) return;
+    const sharedPatch = {};
+    if (bulkPatch.time) sharedPatch.time = bulkPatch.time;
+    if (bulkPatch.duration) sharedPatch.duration = Number(bulkPatch.duration);
+    if (bulkPatch.location) sharedPatch.location = bulkPatch.location;
+    if (bulkPatch.rate) sharedPatch.rate = Number(bulkPatch.rate);
+    const shift = bulkPatch.shiftDays !== "" ? Number(bulkPatch.shiftDays) : 0;
+    if (Object.keys(sharedPatch).length === 0 && shift === 0) return;
+    const updates = selectedAppointments.map((a) => ({
+      id: a.id,
+      patch: shift !== 0 ? { ...sharedPatch, date: addDays(a.date, shift) } : sharedPatch,
+    }));
+    onBulkUpdate(updates);
     setBulkOpen(false);
   }
 
@@ -244,7 +259,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
               <div key={a.id} className="flex items-center justify-between text-sm">
                 <div>
                   <span className="font-medium">{studentMap[a.student_id]?.name}</span>
-                  <span className="text-[#8A8272]"> · {a.date} {timeRange(a.time, a.duration)} · marked unavailable{unavailMap[a.date]?.reason ? ` (${unavailMap[a.date].reason})` : ""}</span>
+                  <span className="text-[#8A8272]"> · {weekdayAbbrev(a.date)} {a.date} {timeRange(a.time, a.duration)} · marked unavailable{unavailMap[a.date]?.reason ? ` (${unavailMap[a.date].reason})` : ""}</span>
                 </div>
                 <button onClick={() => { setSelectedDate(a.date); startReschedule(a); }} className="text-xs text-[#8A6D3B] hover:underline">Reschedule</button>
               </div>
@@ -352,12 +367,21 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                   {bulkLessons.map((a) => (
                     <label key={a.id} className="flex items-center gap-2 text-xs">
                       <input type="checkbox" checked={!!bulkSelected[a.id]} onChange={(e) => setBulkSelected({ ...bulkSelected, [a.id]: e.target.checked })} />
-                      <span style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{a.date} {timeRange(a.time, a.duration)}</span>
+                      <span style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{weekdayAbbrev(a.date)} {a.date} {timeRange(a.time, a.duration)}</span>
                     </label>
                   ))}
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  <Field label="Shift date by (days, blank = keep)">
+                    <input
+                      type="number"
+                      className={inputCls}
+                      placeholder="e.g. 7 or -1"
+                      value={bulkPatch.shiftDays}
+                      onChange={(e) => setBulkPatch({ ...bulkPatch, shiftDays: e.target.value })}
+                    />
+                  </Field>
                   <Field label="New time (blank = keep)">
                     <input type="time" className={inputCls} value={bulkPatch.time} onChange={(e) => setBulkPatch({ ...bulkPatch, time: e.target.value })} />
                   </Field>
@@ -374,6 +398,9 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                     <input type="number" className={inputCls} value={bulkPatch.rate} onChange={(e) => setBulkPatch({ ...bulkPatch, rate: e.target.value })} />
                   </Field>
                 </div>
+                <p className="text-xs text-[#8A8272]">
+                  Shifting by days moves each selected lesson's own date by that many days (e.g. 7 = one week later, -1 = one day earlier) — every lesson keeps its own original date as the starting point.
+                </p>
                 <Button type="submit">Apply to selected lessons</Button>
               </>
             )}

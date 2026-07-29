@@ -125,8 +125,9 @@ export default function Home() {
     await supabase.from("appointments").update(patch).eq("series_id", seriesId);
     refetchAll();
   }
-  async function bulkUpdateAppointments(ids, patch) {
-    await supabase.from("appointments").update(patch).in("id", ids);
+  async function bulkUpdateAppointments(updates) {
+    // updates: [{ id, patch }] — each lesson can get its own patch (e.g. a shifted date)
+    await Promise.all(updates.map(({ id, patch }) => supabase.from("appointments").update(patch).eq("id", id)));
     refetchAll();
   }
   async function rescheduleAppointment(original, { date, time, reason }) {
