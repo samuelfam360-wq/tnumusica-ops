@@ -2,19 +2,32 @@ import { useState, useMemo } from "react";
 import { jsPDF } from "jspdf";
 import { SectionCard, Button, Field, inputCls, money, todayISO } from "./ui";
 
-function downloadInvoicePdf(invoice, student) {
+function downloadInvoicePdf(invoice, student, biz = {}) {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const left = 48;
-  let y = 64;
+  let y = 56;
+
+  if (biz.logo_base64) {
+    try {
+      doc.addImage(biz.logo_base64, "PNG", left, y - 20, 48, 48);
+    } catch (e) {
+      // fall through silently if image format isn't decodable — text header still prints
+    }
+  }
+  const textLeft = biz.logo_base64 ? left + 60 : left;
 
   doc.setFont("times", "bold");
-  doc.setFontSize(20);
-  doc.text("T'numusica", left, y);
+  doc.setFontSize(18);
+  doc.text(biz.company_name || "T'numusica", textLeft, y);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.text("Piano Education", left, y + 16);
+  doc.setFontSize(9);
+  let headerY = y + 14;
+  if (biz.address) { doc.text(biz.address, textLeft, headerY); headerY += 12; }
+  const contactLine = [biz.phone, biz.email].filter(Boolean).join("  ·  ");
+  if (contactLine) { doc.text(contactLine, textLeft, headerY); headerY += 12; }
+  if (biz.license_info) { doc.text(`License: ${biz.license_info}`, textLeft, headerY); headerY += 12; }
 
-  y += 56;
+  y = Math.max(y + 56, headerY + 20);
   doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
   doc.text("INVOICE", left, y);
@@ -67,10 +80,30 @@ function downloadInvoicePdf(invoice, student) {
   doc.text("Total", left, y);
   doc.text(`RM ${Number(invoice.total).toFixed(2)}`, 480, y, { align: "right" });
 
+  if (biz.bank_name || biz.bank_account_number) {
+    y += 40;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text("Payment details", left, y);
+    doc.setFont("helvetica", "normal");
+    y += 14;
+    if (biz.bank_name) { doc.text(`Bank: ${biz.bank_name}`, left, y); y += 14; }
+    if (biz.bank_account_name) { doc.text(`Account name: ${biz.bank_account_name}`, left, y); y += 14; }
+    if (biz.bank_account_number) { doc.text(`Account number: ${biz.bank_account_number}`, left, y); y += 14; }
+  }
+
+  if (biz.payment_terms) {
+    y += 20;
+    doc.setFontSize(9);
+    doc.setTextColor(120);
+    doc.text(biz.payment_terms, left, y);
+    doc.setTextColor(0);
+  }
+
   doc.save(`${invoice.number}.pdf`);
 }
 
-export default function InvoicesTab({ invoices, students, studentMap, appointments, onAddManual, onGenerateMonthly, onMarkPaid, onRemove }) {
+export default function InvoicesTab({ invoices, students, studentMap, appointments, businessSettings, onAddManual, onGenerateMonthly, onMarkPaid, onRemove }) {
   const [form, setForm] = useState({ studentId: students[0]?.id || "", description: "", amount: "", date: todayISO() });
   const [genForm, setGenForm] = useState({ studentId: students[0]?.id || "", period: todayISO().slice(0, 7) });
 
@@ -184,7 +217,7 @@ export default function InvoicesTab({ invoices, students, studentMap, appointmen
                   ) : (
                     <button onClick={() => onMarkPaid(i.id)} className="text-xs text-[#4C5A43] hover:underline">Mark paid</button>
                   )}
-                  <button onClick={() => downloadInvoicePdf(i, studentMap[i.student_id])} className="text-xs text-[#1C1B1A] hover:underline">Download PDF</button>
+                  <button onClick={() => downloadInvoicePdf(i, studentMap[i.student_id], businessSettings)} className="text-xs text-[#1C1B1A] hover:underline">Download PDF</button>
                   <button onClick={() => onRemove(i.id)} className="text-xs text-[#8A8272] hover:underline">Remove</button>
                 </div>
               </div>

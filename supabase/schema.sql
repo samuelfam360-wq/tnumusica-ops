@@ -141,3 +141,29 @@ create policy "allowed users full access" on material_sales
 
 grant select, insert, update, delete on materials to authenticated;
 grant select, insert, update, delete on material_sales to authenticated;
+
+-- ---------- Business profile (used on invoice PDFs) ----------
+create table if not exists business_settings (
+  id text primary key default 'main',
+  company_name text default '',
+  address text default '',
+  phone text default '',
+  email text default '',
+  bank_name text default '',
+  bank_account_name text default '',
+  bank_account_number text default '',
+  license_info text default '',
+  payment_terms text default '',
+  logo_base64 text default '',
+  updated_at timestamptz default now()
+);
+insert into business_settings (id) values ('main') on conflict do nothing;
+
+alter table business_settings enable row level security;
+
+create policy "allowed users full access" on business_settings
+  for all
+  using (exists (select 1 from allowed_users au where au.email = auth.email()))
+  with check (exists (select 1 from allowed_users au where au.email = auth.email()));
+
+grant select, insert, update, delete on business_settings to authenticated;
