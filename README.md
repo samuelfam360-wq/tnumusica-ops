@@ -81,4 +81,3 @@ email-restricted login so only people you approve can access it.
   studio's worth of traffic and data. The only ongoing cost is the
   Anthropic API key, if you use the AI command bar, and that's pay-per-use
   and typically small for this volume.
-"# tnumusica-ops" 

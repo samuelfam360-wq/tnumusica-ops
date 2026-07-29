@@ -10,6 +10,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
     duration: 60,
     location: LOCATIONS[0],
     rate: "",
+    repeatWeeks: 1,
   });
 
   function pickService(serviceId) {
@@ -33,9 +34,8 @@ export default function CalendarTab({ appointments, students, studentMap, servic
     if (!form.studentId) return;
     const student = studentMap[form.studentId];
     const svc = services.find((s) => s.id === form.serviceId);
-    onAdd({
+    const base = {
       student_id: form.studentId,
-      date: form.date,
       time: form.time,
       duration: Number(form.duration) || 60,
       location: form.location,
@@ -44,7 +44,15 @@ export default function CalendarTab({ appointments, students, studentMap, servic
       service_code: svc ? svc.code : null,
       status: "scheduled",
       invoiced: false,
+    };
+    const weeks = Math.max(1, Number(form.repeatWeeks) || 1);
+    const startDate = new Date(form.date + "T00:00:00");
+    const rows = Array.from({ length: weeks }, (_, i) => {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + i * 7);
+      return { ...base, date: d.toISOString().slice(0, 10) };
     });
+    onAdd(weeks === 1 ? rows[0] : rows);
     setForm({ ...form, rate: "" });
   }
 
@@ -91,6 +99,16 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                 className={inputCls}
                 value={form.rate}
                 onChange={(e) => setForm({ ...form, rate: e.target.value })}
+              />
+            </Field>
+            <Field label="Repeat weekly, for how many weeks">
+              <input
+                type="number"
+                min="1"
+                max="52"
+                className={inputCls}
+                value={form.repeatWeeks}
+                onChange={(e) => setForm({ ...form, repeatWeeks: e.target.value })}
               />
             </Field>
             <div className="col-span-2 sm:col-span-3">

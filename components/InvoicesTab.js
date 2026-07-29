@@ -1,5 +1,74 @@
 import { useState, useMemo } from "react";
+import { jsPDF } from "jspdf";
 import { SectionCard, Button, Field, inputCls, money, todayISO } from "./ui";
+
+function downloadInvoicePdf(invoice, student) {
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const left = 48;
+  let y = 64;
+
+  doc.setFont("times", "bold");
+  doc.setFontSize(20);
+  doc.text("T'numusica", left, y);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text("Piano Education", left, y + 16);
+
+  y += 56;
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.text("INVOICE", left, y);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  y += 20;
+  doc.text(`Invoice #: ${invoice.number}`, left, y);
+  y += 14;
+  doc.text(`Date: ${invoice.date}`, left, y);
+  y += 14;
+  doc.text(`Status: ${invoice.status === "paid" ? `Paid (${invoice.paid_date || ""})` : "Unpaid"}`, left, y);
+
+  y += 28;
+  doc.setFont("helvetica", "bold");
+  doc.text("Bill to:", left, y);
+  doc.setFont("helvetica", "normal");
+  y += 14;
+  doc.text(student?.name || "Unknown student", left, y);
+
+  y += 32;
+  doc.setDrawColor(200);
+  doc.line(left, y, 547, y);
+  y += 18;
+
+  doc.setFont("helvetica", "bold");
+  doc.text("Description", left, y);
+  doc.text("Amount (RM)", 480, y, { align: "right" });
+  y += 8;
+  doc.line(left, y, 547, y);
+  y += 20;
+  doc.setFont("helvetica", "normal");
+
+  if (invoice.lines && invoice.lines.length > 0) {
+    invoice.lines.forEach((l) => {
+      doc.text(`${l.count} × ${l.duration} min lesson${invoice.period ? ` (${invoice.period})` : ""}`, left, y);
+      doc.text(l.subtotal.toFixed(2), 480, y, { align: "right" });
+      y += 18;
+    });
+  } else {
+    doc.text(invoice.description || "Piano lessons", left, y);
+    doc.text(Number(invoice.total).toFixed(2), 480, y, { align: "right" });
+    y += 18;
+  }
+
+  y += 10;
+  doc.line(left, y, 547, y);
+  y += 22;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text("Total", left, y);
+  doc.text(`RM ${Number(invoice.total).toFixed(2)}`, 480, y, { align: "right" });
+
+  doc.save(`${invoice.number}.pdf`);
+}
 
 export default function InvoicesTab({ invoices, students, studentMap, appointments, onAddManual, onGenerateMonthly, onMarkPaid, onRemove }) {
   const [form, setForm] = useState({ studentId: students[0]?.id || "", description: "", amount: "", date: todayISO() });
@@ -115,6 +184,7 @@ export default function InvoicesTab({ invoices, students, studentMap, appointmen
                   ) : (
                     <button onClick={() => onMarkPaid(i.id)} className="text-xs text-[#4C5A43] hover:underline">Mark paid</button>
                   )}
+                  <button onClick={() => downloadInvoicePdf(i, studentMap[i.student_id])} className="text-xs text-[#1C1B1A] hover:underline">Download PDF</button>
                   <button onClick={() => onRemove(i.id)} className="text-xs text-[#8A8272] hover:underline">Remove</button>
                 </div>
               </div>
