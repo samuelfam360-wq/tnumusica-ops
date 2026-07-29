@@ -1,14 +1,28 @@
 import { useMemo } from "react";
 import { SectionCard, money, todayISO } from "./ui";
 
-export default function IncomeTab({ appointments, invoices, studentMap }) {
+export default function IncomeTab({ appointments, invoices, studentMap, materials = [], materialSales = [] }) {
   const months = useMemo(() => {
     const set = new Set();
     appointments.forEach((a) => a.status === "completed" && set.add(a.date.slice(0, 7)));
     invoices.forEach((i) => i.status === "paid" && set.add((i.paid_date || i.date).slice(0, 7)));
+    materialSales.forEach((s) => set.add(s.date.slice(0, 7)));
     if (set.size === 0) set.add(todayISO().slice(0, 7));
     return [...set].sort().reverse();
-  }, [appointments, invoices]);
+  }, [appointments, invoices, materialSales]);
+
+  const materialMap = useMemo(() => {
+    const m = {};
+    materials.forEach((x) => (m[x.id] = x));
+    return m;
+  }, [materials]);
+
+  function costPerUnit(m) {
+    if (!m) return 0;
+    return m.cost_mode === "batch"
+      ? (m.batch_quantity > 0 ? m.batch_cost / m.batch_quantity : 0)
+      : m.per_unit_cost;
+  }
 
   const byMonth = months.map((m) => {
     const lessonIncome = appointments
@@ -17,7 +31,11 @@ export default function IncomeTab({ appointments, invoices, studentMap }) {
     const invoiceIncome = invoices
       .filter((i) => i.status === "paid" && (i.paid_date || i.date).slice(0, 7) === m)
       .reduce((sum, i) => sum + (Number(i.total) || 0), 0);
-    return { month: m, lessonIncome, invoiceIncome, total: lessonIncome + invoiceIncome };
+    const monthSales = materialSales.filter((s) => s.date.slice(0, 7) === m);
+    const materialsRevenue = monthSales.reduce((sum, s) => sum + Number(s.total), 0);
+    const materialsCost = monthSales.reduce((sum, s) => sum + costPerUnit(materialMap[s.material_id]) * s.quantity, 0);
+    const materialsProfit = materialsRevenue - materialsCost;
+    return { month: m, lessonIncome, invoiceIncome, materialsProfit, total: lessonIncome + invoiceIncome + materialsProfit };
   });
 
   const byStudent = useMemo(() => {
@@ -44,6 +62,7 @@ export default function IncomeTab({ appointments, invoices, studentMap }) {
                 <th className="py-1.5">Month</th>
                 <th className="py-1.5">Lessons</th>
                 <th className="py-1.5">Invoices</th>
+                <th className="py-1.5">Materials</th>
                 <th className="py-1.5">Total</th>
               </tr>
             </thead>
@@ -53,6 +72,7 @@ export default function IncomeTab({ appointments, invoices, studentMap }) {
                   <td className="py-1.5">{r.month}</td>
                   <td className="py-1.5">{money(r.lessonIncome)}</td>
                   <td className="py-1.5">{money(r.invoiceIncome)}</td>
+                  <td className="py-1.5">{money(r.materialsProfit)}</td>
                   <td className="py-1.5 font-medium">{money(r.total)}</td>
                 </tr>
               ))}

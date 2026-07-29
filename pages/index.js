@@ -6,6 +6,7 @@ import StudentsTab from "../components/StudentsTab";
 import RatesTab from "../components/RatesTab";
 import IncomeTab from "../components/IncomeTab";
 import InvoicesTab from "../components/InvoicesTab";
+import MaterialsTab from "../components/MaterialsTab";
 import AICommandBar from "../components/AICommandBar";
 import { KeyNav, StatCard, PianoMark, money, todayISO } from "../components/ui";
 
@@ -18,6 +19,8 @@ export default function Home() {
   const [appointments, setAppointments] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [services, setServices] = useState([]);
+  const [materials, setMaterials] = useState([]);
+  const [materialSales, setMaterialSales] = useState([]);
   const [dataLoaded, setDataLoaded] = useState(false);
 
   useEffect(() => {
@@ -39,16 +42,20 @@ export default function Home() {
   }, [session]);
 
   async function refetchAll() {
-    const [s, a, inv, svc] = await Promise.all([
+    const [s, a, inv, svc, mat, matSales] = await Promise.all([
       supabase.from("students").select("*").order("name"),
       supabase.from("appointments").select("*").order("date").order("time"),
       supabase.from("invoices").select("*").order("date", { ascending: false }),
       supabase.from("services").select("*"),
+      supabase.from("materials").select("*").order("name"),
+      supabase.from("material_sales").select("*").order("date", { ascending: false }),
     ]);
     setStudents(s.data || []);
     setAppointments(a.data || []);
     setInvoices(inv.data || []);
     setServices(svc.data || []);
+    setMaterials(mat.data || []);
+    setMaterialSales(matSales.data || []);
     setDataLoaded(true);
   }
 
@@ -150,6 +157,24 @@ export default function Home() {
   }
   async function removeInvoice(id) {
     await supabase.from("invoices").delete().eq("id", id);
+    refetchAll();
+  }
+
+  // ---- Materials ----
+  async function addMaterial(payload) {
+    await supabase.from("materials").insert(payload);
+    refetchAll();
+  }
+  async function removeMaterial(id) {
+    await supabase.from("materials").delete().eq("id", id);
+    refetchAll();
+  }
+  async function addMaterialSale(payload) {
+    await supabase.from("material_sales").insert(payload);
+    refetchAll();
+  }
+  async function removeMaterialSale(id) {
+    await supabase.from("material_sales").delete().eq("id", id);
     refetchAll();
   }
 
@@ -308,6 +333,7 @@ export default function Home() {
             { id: "calendar", label: "Calendar" },
             { id: "students", label: "Students" },
             { id: "rates", label: "Rates" },
+            { id: "materials", label: "Materials" },
             { id: "income", label: "Income" },
             { id: "invoices", label: "Invoices" },
           ]}
@@ -332,8 +358,20 @@ export default function Home() {
         {tab === "rates" && (
           <RatesTab services={services} onAdd={addService} onUpdate={updateService} onRemove={removeService} />
         )}
+        {tab === "materials" && (
+          <MaterialsTab
+            materials={materials}
+            sales={materialSales}
+            students={students}
+            studentMap={studentMap}
+            onAddMaterial={addMaterial}
+            onRemoveMaterial={removeMaterial}
+            onAddSale={addMaterialSale}
+            onRemoveSale={removeMaterialSale}
+          />
+        )}
         {tab === "income" && (
-          <IncomeTab appointments={appointments} invoices={invoices} studentMap={studentMap} />
+          <IncomeTab appointments={appointments} invoices={invoices} studentMap={studentMap} materials={materials} materialSales={materialSales} />
         )}
         {tab === "invoices" && (
           <InvoicesTab
