@@ -117,6 +117,7 @@ export function StatusPill({ status }) {
     scheduled: ["Scheduled", "#8A8272", "#F3EEE2"],
     completed: ["Completed", "#4C5A43", "#E7EDE1"],
     cancelled: ["Cancelled", "#6B2C3E", "#F6EBEE"],
+    rescheduled: ["Rescheduled", "#8A6D3B", "#F5EDDD"],
   };
   const [label, color, bg] = map[status] || map.scheduled;
   return (

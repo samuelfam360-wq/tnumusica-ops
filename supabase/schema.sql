@@ -56,6 +56,9 @@ create table if not exists appointments (
   service_code text,
   status text not null default 'scheduled',
   invoiced boolean not null default false,
+  series_id uuid,
+  notes text default '',
+  rescheduled_from uuid references appointments(id) on delete set null,
   created_at timestamptz default now()
 );
 

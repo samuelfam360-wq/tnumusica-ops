@@ -118,6 +118,32 @@ export default function Home() {
     await supabase.from("appointments").update(patch).eq("id", id);
     refetchAll();
   }
+  async function updateAppointmentSeries(seriesId, patch) {
+    await supabase.from("appointments").update(patch).eq("series_id", seriesId);
+    refetchAll();
+  }
+  async function rescheduleAppointment(original, { date, time, reason }) {
+    await supabase
+      .from("appointments")
+      .update({ status: "rescheduled", notes: reason ? `${original.notes ? original.notes + " — " : ""}${reason}` : original.notes })
+      .eq("id", original.id);
+    await supabase.from("appointments").insert({
+      student_id: original.student_id,
+      date,
+      time,
+      duration: original.duration,
+      location: original.location,
+      rate: original.rate,
+      service_id: original.service_id,
+      service_code: original.service_code,
+      status: "scheduled",
+      invoiced: false,
+      series_id: null,
+      notes: reason,
+      rescheduled_from: original.id,
+    });
+    refetchAll();
+  }
   async function removeAppointment(id) {
     await supabase.from("appointments").delete().eq("id", id);
     refetchAll();
@@ -318,7 +344,7 @@ export default function Home() {
     .filter((i) => i.status === "unpaid")
     .reduce((sum, i) => sum + (Number(i.total) || 0), 0);
   const upcomingCount = appointments.filter(
-    (a) => a.status !== "completed" && a.status !== "cancelled" && a.date >= todayISO()
+    (a) => a.status !== "completed" && a.status !== "cancelled" && a.status !== "rescheduled" && a.date >= todayISO()
   ).length;
 
   const materialMapForStats = {};
@@ -383,6 +409,8 @@ export default function Home() {
             services={services}
             onAdd={addAppointment}
             onUpdate={updateAppointment}
+            onUpdateSeries={updateAppointmentSeries}
+            onReschedule={rescheduleAppointment}
             onSetStatus={setAppointmentStatus}
             onRemove={removeAppointment}
           />

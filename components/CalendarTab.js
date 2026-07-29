@@ -10,6 +10,11 @@ function toISO(d) {
   return `${y}-${m}-${day}`;
 }
 
+function newId() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 const blankForm = (students) => ({
   studentId: students[0]?.id || "",
   date: todayISO(),
@@ -19,12 +24,16 @@ const blankForm = (students) => ({
   location: LOCATIONS[0],
   rate: "",
   repeatWeeks: 1,
+  notes: "",
 });
 
-export default function CalendarTab({ appointments, students, studentMap, services, onAdd, onUpdate, onSetStatus, onRemove }) {
+export default function CalendarTab({ appointments, students, studentMap, services, onAdd, onUpdate, onUpdateSeries, onReschedule, onSetStatus, onRemove }) {
   const [form, setForm] = useState(() => blankForm(students));
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState(null);
+  const [applyToSeries, setApplyToSeries] = useState(false);
+  const [reschedulingId, setReschedulingId] = useState(null);
+  const [reschedForm, setReschedForm] = useState(null);
 
   const [viewMonth, setViewMonth] = useState(() => {
     const t = new Date();
@@ -56,11 +65,17 @@ export default function CalendarTab({ appointments, students, studentMap, servic
       .sort((a, b) => a.time.localeCompare(b.time));
   }, [appointments, selectedDate]);
 
+  function findRescheduledTo(id) {
+    return appointments.find((a) => a.rescheduled_from === id);
+  }
+
   function submit(e) {
     e.preventDefault();
     if (!form.studentId) return;
     const student = studentMap[form.studentId];
     const svc = services.find((s) => s.id === form.serviceId);
+    const weeks = Math.max(1, Number(form.repeatWeeks) || 1);
+    const seriesId = weeks > 1 ? newId() : null;
     const base = {
       student_id: form.studentId,
       time: form.time,
@@ -71,8 +86,9 @@ export default function CalendarTab({ appointments, students, studentMap, servic
       service_code: svc ? svc.code : null,
       status: "scheduled",
       invoiced: false,
+      series_id: seriesId,
+      notes: form.notes.trim(),
     };
-    const weeks = Math.max(1, Number(form.repeatWeeks) || 1);
     const startDate = new Date(form.date + "T00:00:00");
     const rows = Array.from({ length: weeks }, (_, i) => {
       const d = new Date(startDate);
@@ -86,6 +102,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
 
   function startEdit(a) {
     setEditingId(a.id);
+    setApplyToSeries(false);
     setEditForm({
       studentId: a.student_id,
       date: a.date,
@@ -94,27 +111,49 @@ export default function CalendarTab({ appointments, students, studentMap, servic
       duration: a.duration,
       location: a.location,
       rate: String(a.rate),
+      notes: a.notes || "",
     });
   }
   function cancelEdit() {
     setEditingId(null);
     setEditForm(null);
   }
-  function saveEdit(e) {
+  function saveEdit(e, seriesIdOfEditing) {
     e.preventDefault();
     const svc = services.find((s) => s.id === editForm.serviceId);
-    onUpdate(editingId, {
+    const patch = {
       student_id: editForm.studentId,
-      date: editForm.date,
       time: editForm.time,
       duration: Number(editForm.duration) || 60,
       location: editForm.location,
       rate: Number(editForm.rate) || 0,
       service_id: svc ? svc.id : null,
       service_code: svc ? svc.code : null,
-    });
+      notes: editForm.notes.trim(),
+    };
+    if (applyToSeries && seriesIdOfEditing) {
+      onUpdateSeries(seriesIdOfEditing, patch);
+    } else {
+      onUpdate(editingId, { ...patch, date: editForm.date });
+    }
     setEditingId(null);
     setEditForm(null);
+    setApplyToSeries(false);
+  }
+
+  function startReschedule(a) {
+    setReschedulingId(a.id);
+    setReschedForm({ date: a.date, time: a.time, reason: "" });
+  }
+  function cancelReschedule() {
+    setReschedulingId(null);
+    setReschedForm(null);
+  }
+  function saveReschedule(e, a) {
+    e.preventDefault();
+    onReschedule(a, { date: reschedForm.date, time: reschedForm.time, reason: reschedForm.reason.trim() });
+    setReschedulingId(null);
+    setReschedForm(null);
   }
 
   // ---- Month grid construction ----
@@ -189,6 +228,9 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                 onChange={(e) => setForm({ ...form, repeatWeeks: e.target.value })}
               />
             </Field>
+            <Field label="Description / notes (optional)">
+              <input className={inputCls} placeholder="e.g. Trial lesson" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            </Field>
             <div className="col-span-2 sm:col-span-3">
               <Button type="submit">Add to schedule</Button>
             </div>
@@ -243,49 +285,84 @@ export default function CalendarTab({ appointments, students, studentMap, servic
           <p className="text-sm text-[#8A8272]">Nothing scheduled this day.</p>
         ) : (
           <div className="space-y-2">
-            {scheduleForSelected.map((a) => (
-              editingId === a.id ? (
-                <form key={a.id} onSubmit={saveEdit} className="border border-[#B8935F] rounded-md p-3 space-y-2">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    <Field label="Student">
-                      <select className={inputCls} value={editForm.studentId} onChange={(e) => setEditForm({ ...editForm, studentId: e.target.value })}>
-                        {students.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                      </select>
-                    </Field>
-                    <Field label="Date">
-                      <input type="date" className={inputCls} value={editForm.date} onChange={(e) => setEditForm({ ...editForm, date: e.target.value })} />
-                    </Field>
-                    <Field label={`Time (ends ${endTime(editForm.time, editForm.duration)})`}>
-                      <input type="time" className={inputCls} value={editForm.time} onChange={(e) => setEditForm({ ...editForm, time: e.target.value })} />
-                    </Field>
-                    {services.length > 0 && (
-                      <Field label="Service / grade code">
-                        <select className={inputCls} value={editForm.serviceId} onChange={(e) => pickService(e.target.value, editForm, setEditForm)}>
-                          <option value="">Custom</option>
-                          {services.map((s) => (
-                            <option key={s.id} value={s.id}>{s.code} — {s.label} ({s.duration} min)</option>
-                          ))}
+            {scheduleForSelected.map((a) => {
+              const movedTo = findRescheduledTo(a.id);
+              if (editingId === a.id) {
+                return (
+                  <form key={a.id} onSubmit={(e) => saveEdit(e, a.series_id)} className="border border-[#B8935F] rounded-md p-3 space-y-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      <Field label="Student">
+                        <select className={inputCls} value={editForm.studentId} onChange={(e) => setEditForm({ ...editForm, studentId: e.target.value })}>
+                          {students.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                       </Field>
+                      <Field label="Date">
+                        <input type="date" className={inputCls} value={editForm.date} disabled={applyToSeries} onChange={(e) => setEditForm({ ...editForm, date: e.target.value })} />
+                      </Field>
+                      <Field label={`Time (ends ${endTime(editForm.time, editForm.duration)})`}>
+                        <input type="time" className={inputCls} value={editForm.time} onChange={(e) => setEditForm({ ...editForm, time: e.target.value })} />
+                      </Field>
+                      {services.length > 0 && (
+                        <Field label="Service / grade code">
+                          <select className={inputCls} value={editForm.serviceId} onChange={(e) => pickService(e.target.value, editForm, setEditForm)}>
+                            <option value="">Custom</option>
+                            {services.map((s) => (
+                              <option key={s.id} value={s.id}>{s.code} — {s.label} ({s.duration} min)</option>
+                            ))}
+                          </select>
+                        </Field>
+                      )}
+                      <Field label="Duration (min)">
+                        <input type="number" className={inputCls} value={editForm.duration} onChange={(e) => setEditForm({ ...editForm, duration: e.target.value, serviceId: "" })} />
+                      </Field>
+                      <Field label="Location">
+                        <select className={inputCls} value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}>
+                          {LOCATIONS.map((l) => <option key={l}>{l}</option>)}
+                        </select>
+                      </Field>
+                      <Field label="Rate (RM)">
+                        <input type="number" className={inputCls} value={editForm.rate} onChange={(e) => setEditForm({ ...editForm, rate: e.target.value })} />
+                      </Field>
+                      <Field label="Description / notes">
+                        <input className={inputCls} value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} />
+                      </Field>
+                    </div>
+                    {a.series_id && (
+                      <label className="flex items-center gap-2 text-xs text-[#5C564A]">
+                        <input type="checkbox" checked={applyToSeries} onChange={(e) => setApplyToSeries(e.target.checked)} />
+                        Apply this change to every lesson in this weekly series (keeps each one's own date)
+                      </label>
                     )}
-                    <Field label="Duration (min)">
-                      <input type="number" className={inputCls} value={editForm.duration} onChange={(e) => setEditForm({ ...editForm, duration: e.target.value, serviceId: "" })} />
-                    </Field>
-                    <Field label="Location">
-                      <select className={inputCls} value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}>
-                        {LOCATIONS.map((l) => <option key={l}>{l}</option>)}
-                      </select>
-                    </Field>
-                    <Field label="Rate (RM)">
-                      <input type="number" className={inputCls} value={editForm.rate} onChange={(e) => setEditForm({ ...editForm, rate: e.target.value })} />
-                    </Field>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button type="submit">Save</Button>
-                    <Button type="button" variant="secondary" onClick={cancelEdit}>Cancel</Button>
-                  </div>
-                </form>
-              ) : (
+                    <div className="flex gap-2">
+                      <Button type="submit">Save</Button>
+                      <Button type="button" variant="secondary" onClick={cancelEdit}>Cancel</Button>
+                    </div>
+                  </form>
+                );
+              }
+              if (reschedulingId === a.id) {
+                return (
+                  <form key={a.id} onSubmit={(e) => saveReschedule(e, a)} className="border border-[#8A6D3B] rounded-md p-3 space-y-2">
+                    <div className="text-sm font-medium">Reschedule {studentMap[a.student_id]?.name}'s lesson</div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      <Field label="New date">
+                        <input type="date" className={inputCls} value={reschedForm.date} onChange={(e) => setReschedForm({ ...reschedForm, date: e.target.value })} />
+                      </Field>
+                      <Field label="New time">
+                        <input type="time" className={inputCls} value={reschedForm.time} onChange={(e) => setReschedForm({ ...reschedForm, time: e.target.value })} />
+                      </Field>
+                      <Field label="Reason (optional)">
+                        <input className={inputCls} placeholder="e.g. Student absent, teacher away" value={reschedForm.reason} onChange={(e) => setReschedForm({ ...reschedForm, reason: e.target.value })} />
+                      </Field>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="submit">Confirm reschedule</Button>
+                      <Button type="button" variant="secondary" onClick={cancelReschedule}>Cancel</Button>
+                    </div>
+                  </form>
+                );
+              }
+              return (
                 <div key={a.id} className="flex items-center justify-between border border-[#EDE7DB] rounded-md px-3 py-2">
                   <div className="flex items-center gap-3">
                     <span style={{ fontFamily: "'IBM Plex Mono', monospace" }} className="text-sm w-28">{timeRange(a.time, a.duration)}</span>
@@ -294,22 +371,32 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                       <div className="text-xs text-[#8A8272]">
                         {a.service_code ? `(${a.service_code}) ` : ""}{a.duration} min · {a.location} · {money(a.rate)}
                       </div>
+                      {a.notes && <div className="text-xs text-[#8A8272] italic">{a.notes}</div>}
+                      {a.status === "rescheduled" && movedTo && (
+                        <div className="text-xs text-[#8A6D3B]">→ moved to {movedTo.date} {movedTo.time}</div>
+                      )}
+                      {a.rescheduled_from && (
+                        <div className="text-xs text-[#8A6D3B]">Rescheduled from an earlier lesson</div>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <StatusPill status={a.status} />
-                    {a.status !== "completed" && (
+                    {a.status !== "completed" && a.status !== "rescheduled" && (
                       <button onClick={() => onSetStatus(a.id, "completed")} className="text-xs text-[#7A8B6F] hover:underline">Mark done</button>
                     )}
-                    {a.status !== "cancelled" && a.status !== "completed" && (
-                      <button onClick={() => onSetStatus(a.id, "cancelled")} className="text-xs text-[#6B2C3E] hover:underline">Cancel</button>
+                    {a.status !== "cancelled" && a.status !== "completed" && a.status !== "rescheduled" && (
+                      <>
+                        <button onClick={() => startReschedule(a)} className="text-xs text-[#8A6D3B] hover:underline">Reschedule</button>
+                        <button onClick={() => onSetStatus(a.id, "cancelled")} className="text-xs text-[#6B2C3E] hover:underline">Cancel</button>
+                      </>
                     )}
                     <button onClick={() => startEdit(a)} className="text-xs text-[#1C1B1A] hover:underline">Edit</button>
                     <button onClick={() => onRemove(a.id)} className="text-xs text-[#8A8272] hover:underline">Remove</button>
                   </div>
                 </div>
-              )
-            ))}
+              );
+            })}
           </div>
         )}
       </SectionCard>
