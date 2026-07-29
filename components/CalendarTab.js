@@ -25,6 +25,36 @@ function weekdayAbbrev(dateStr) {
   return WEEKDAY_LABELS[new Date(dateStr + "T00:00:00").getDay()];
 }
 
+function toMinutes(time) {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+}
+
+// Returns the list of other appointments on the same date whose time range overlaps.
+function findClashes(appointments, date, time, duration, excludeId) {
+  const start = toMinutes(time);
+  const end = start + (Number(duration) || 0);
+  return appointments.filter((a) => {
+    if (a.id === excludeId) return false;
+    if (a.date !== date) return false;
+    if (a.status === "cancelled" || a.status === "rescheduled") return false;
+    const aStart = toMinutes(a.time);
+    const aEnd = aStart + (Number(a.duration) || 0);
+    return aStart < end && start < aEnd;
+  });
+}
+
+function ClashWarning({ appointments, date, time, duration, excludeId, studentMap }) {
+  if (!date || !time) return null;
+  const clashes = findClashes(appointments, date, time, duration, excludeId);
+  if (clashes.length === 0) return null;
+  return (
+    <div className="text-xs text-[#6B2C3E] bg-[#F6EBEE] border border-[#6B2C3E] rounded-md px-2.5 py-1.5">
+      ⚠ Clashes with {clashes.map((c) => `${studentMap[c.student_id]?.name || "another lesson"} at ${c.time}`).join(", ")}
+    </div>
+  );
+}
+
 const blankForm = (students) => ({
   studentId: students[0]?.id || "",
   date: todayISO(),
@@ -94,7 +124,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
   }, [selectedDate]);
 
   function findRescheduledTo(id) {
-    return appointments.find((a) => a.rescheduled_from === id);
+    return appointments.filter((a) => a.rescheduled_from === id);
   }
 
   const bulkLessons = useMemo(() => {
@@ -214,15 +244,36 @@ export default function CalendarTab({ appointments, students, studentMap, servic
 
   function startReschedule(a) {
     setReschedulingId(a.id);
-    setReschedForm({ date: a.date, time: a.time, reason: "" });
+    setReschedForm({
+      reason: "",
+      slots: [{ date: a.date, time: a.time, duration: a.duration, rate: a.rate }],
+    });
   }
   function cancelReschedule() {
     setReschedulingId(null);
     setReschedForm(null);
   }
+  function addReschedSlot() {
+    const last = reschedForm.slots[reschedForm.slots.length - 1];
+    setReschedForm({ ...reschedForm, slots: [...reschedForm.slots, { ...last }] });
+  }
+  function removeReschedSlot(idx) {
+    setReschedForm({ ...reschedForm, slots: reschedForm.slots.filter((_, i) => i !== idx) });
+  }
+  function updateReschedSlot(idx, patch) {
+    setReschedForm({ ...reschedForm, slots: reschedForm.slots.map((s, i) => (i === idx ? { ...s, ...patch } : s)) });
+  }
   function saveReschedule(e, a) {
     e.preventDefault();
-    onReschedule(a, { date: reschedForm.date, time: reschedForm.time, reason: reschedForm.reason.trim() });
+    onReschedule(a, {
+      reason: reschedForm.reason.trim(),
+      slots: reschedForm.slots.map((s) => ({
+        date: s.date,
+        time: s.time,
+        duration: Number(s.duration) || a.duration,
+        rate: s.rate === "" || s.rate == null ? a.rate : Number(s.rate),
+      })),
+    });
     setReschedulingId(null);
     setReschedForm(null);
   }
@@ -327,6 +378,9 @@ export default function CalendarTab({ appointments, students, studentMap, servic
             <Field label="Description / notes (optional)">
               <input className={inputCls} placeholder="e.g. Trial lesson" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
             </Field>
+            <div className="col-span-2 sm:col-span-3">
+              <ClashWarning appointments={appointments} date={form.date} time={form.time} duration={form.duration} studentMap={studentMap} />
+            </div>
             <div className="col-span-2 sm:col-span-3">
               <Button type="submit">Add to schedule</Button>
             </div>
@@ -543,6 +597,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                         Apply this change to every lesson in this weekly series (keeps each one's own date)
                       </label>
                     )}
+                    <ClashWarning appointments={appointments} date={editForm.date} time={editForm.time} duration={editForm.duration} excludeId={a.id} studentMap={studentMap} />
                     <div className="flex gap-2">
                       <Button type="submit">Save</Button>
                       <Button type="button" variant="secondary" onClick={cancelEdit}>Cancel</Button>
@@ -552,19 +607,37 @@ export default function CalendarTab({ appointments, students, studentMap, servic
               }
               if (reschedulingId === a.id) {
                 return (
-                  <form key={a.id} onSubmit={(e) => saveReschedule(e, a)} className="border border-[#8A6D3B] rounded-md p-3 space-y-2">
+                  <form key={a.id} onSubmit={(e) => saveReschedule(e, a)} className="border border-[#8A6D3B] rounded-md p-3 space-y-3">
                     <div className="text-sm font-medium">Reschedule {studentMap[a.student_id]?.name}'s lesson</div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      <Field label="New date">
-                        <input type="date" className={inputCls} value={reschedForm.date} onChange={(e) => setReschedForm({ ...reschedForm, date: e.target.value })} />
-                      </Field>
-                      <Field label="New time">
-                        <input type="time" className={inputCls} value={reschedForm.time} onChange={(e) => setReschedForm({ ...reschedForm, time: e.target.value })} />
-                      </Field>
-                      <Field label="Reason (optional)">
-                        <input className={inputCls} placeholder="e.g. Student absent, teacher away" value={reschedForm.reason} onChange={(e) => setReschedForm({ ...reschedForm, reason: e.target.value })} />
-                      </Field>
-                    </div>
+                    <p className="text-xs text-[#8A8272]">
+                      Usually one replacement slot. If splitting the missed lesson across two shorter makeup times, add another slot below.
+                    </p>
+                    {reschedForm.slots.map((slot, idx) => (
+                      <div key={idx} className="border border-[#EDE7DB] rounded-md p-2 space-y-1">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
+                          <Field label="New date">
+                            <input type="date" className={inputCls} value={slot.date} onChange={(e) => updateReschedSlot(idx, { date: e.target.value })} />
+                          </Field>
+                          <Field label="New time">
+                            <input type="time" className={inputCls} value={slot.time} onChange={(e) => updateReschedSlot(idx, { time: e.target.value })} />
+                          </Field>
+                          <Field label="Duration (min)">
+                            <input type="number" className={inputCls} value={slot.duration} onChange={(e) => updateReschedSlot(idx, { duration: e.target.value })} />
+                          </Field>
+                          <Field label="Rate (RM)">
+                            <input type="number" className={inputCls} value={slot.rate} onChange={(e) => updateReschedSlot(idx, { rate: e.target.value })} />
+                          </Field>
+                        </div>
+                        <ClashWarning appointments={appointments} date={slot.date} time={slot.time} duration={slot.duration} excludeId={a.id} studentMap={studentMap} />
+                        {reschedForm.slots.length > 1 && (
+                          <button type="button" onClick={() => removeReschedSlot(idx)} className="text-xs text-[#6B2C3E] hover:underline">Remove this slot</button>
+                        )}
+                      </div>
+                    ))}
+                    <button type="button" onClick={addReschedSlot} className="text-xs text-[#1C1B1A] hover:underline">+ Add another replacement slot</button>
+                    <Field label="Reason (optional)">
+                      <input className={inputCls} placeholder="e.g. Student absent, teacher away" value={reschedForm.reason} onChange={(e) => setReschedForm({ ...reschedForm, reason: e.target.value })} />
+                    </Field>
                     <div className="flex gap-2">
                       <Button type="submit">Confirm reschedule</Button>
                       <Button type="button" variant="secondary" onClick={cancelReschedule}>Cancel</Button>
@@ -582,8 +655,10 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                         {a.service_code ? `(${a.service_code}) ` : ""}{a.duration} min · {a.location} · {money(a.rate)}
                       </div>
                       {a.notes && <div className="text-xs text-[#8A8272] italic">{a.notes}</div>}
-                      {a.status === "rescheduled" && movedTo && (
-                        <div className="text-xs text-[#8A6D3B]">→ moved to {movedTo.date} {movedTo.time}</div>
+                      {a.status === "rescheduled" && movedTo.length > 0 && (
+                        <div className="text-xs text-[#8A6D3B]">
+                          → moved to {movedTo.map((m) => `${m.date} ${m.time}`).join(", ")}
+                        </div>
                       )}
                       {a.rescheduled_from && (
                         <div className="text-xs text-[#8A6D3B]">Rescheduled from an earlier lesson</div>

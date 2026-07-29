@@ -130,26 +130,28 @@ export default function Home() {
     await Promise.all(updates.map(({ id, patch }) => supabase.from("appointments").update(patch).eq("id", id)));
     refetchAll();
   }
-  async function rescheduleAppointment(original, { date, time, reason }) {
+  async function rescheduleAppointment(original, { reason, slots }) {
     await supabase
       .from("appointments")
       .update({ status: "rescheduled", notes: reason ? `${original.notes ? original.notes + " — " : ""}${reason}` : original.notes })
       .eq("id", original.id);
-    await supabase.from("appointments").insert({
-      student_id: original.student_id,
-      date,
-      time,
-      duration: original.duration,
-      location: original.location,
-      rate: original.rate,
-      service_id: original.service_id,
-      service_code: original.service_code,
-      status: "scheduled",
-      invoiced: false,
-      series_id: null,
-      notes: reason,
-      rescheduled_from: original.id,
-    });
+    await supabase.from("appointments").insert(
+      slots.map((slot) => ({
+        student_id: original.student_id,
+        date: slot.date,
+        time: slot.time,
+        duration: slot.duration,
+        location: original.location,
+        rate: slot.rate,
+        service_id: original.service_id,
+        service_code: original.service_code,
+        status: "scheduled",
+        invoiced: false,
+        series_id: null,
+        notes: reason,
+        rescheduled_from: original.id,
+      }))
+    );
     refetchAll();
   }
   async function removeAppointment(id) {
