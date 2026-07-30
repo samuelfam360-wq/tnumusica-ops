@@ -265,15 +265,35 @@ export default function CalendarTab({ appointments, students, studentMap, servic
   return (
     <div className="space-y-4">
       {needsReschedule.length > 0 && (
-        <SectionCard title="Needs rescheduling">
-          <div className="space-y-2">
-            {needsReschedule.map((a) => (
-              <div key={a.id} className="flex items-center justify-between text-sm">
-                <div>
-                  <span className="font-medium">{studentMap[a.student_id]?.name}</span>
-                  <span className="text-[#8A8272]"> · {weekdayAbbrev(a.date)} {a.date} {timeRange(a.time, a.duration)} · marked unavailable{unavailMap[a.date]?.reason ? ` (${unavailMap[a.date].reason})` : ""}</span>
+        <SectionCard title={`Needs rescheduling (${needsReschedule.length})`}>
+          <div className="space-y-4">
+            {Object.entries(
+              needsReschedule.reduce((groups, a) => {
+                (groups[a.date] = groups[a.date] || []).push(a);
+                return groups;
+              }, {})
+            ).map(([date, items]) => (
+              <div key={date}>
+                <div className="text-xs uppercase tracking-wide text-[#8A8272] mb-1.5">
+                  {weekdayAbbrev(date)} {date}
+                  {unavailMap[date]?.reason ? ` — ${unavailMap[date].reason}` : ""}
                 </div>
-                <button onClick={() => { setSelectedDate(a.date); setDayModalOpen(true); startReschedule(a); }} className="text-xs text-[#8A6D3B] hover:underline">Reschedule</button>
+                <div className="space-y-2">
+                  {items.map((a) => (
+                    <div key={a.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 text-sm border-b border-[#EDE7DB] pb-2 last:border-0 last:pb-0">
+                      <div>
+                        <span className="font-medium">{studentMap[a.student_id]?.name}</span>
+                        <span className="text-[#8A8272]"> · {timeRange(a.time, a.duration)}</span>
+                      </div>
+                      <button
+                        onClick={() => { setSelectedDate(a.date); setDayModalOpen(true); startReschedule(a); }}
+                        className="text-xs text-[#8A6D3B] hover:underline self-start sm:self-auto"
+                      >
+                        Reschedule
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>

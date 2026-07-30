@@ -166,26 +166,28 @@ export function ClashWarning({ appointments, date, time, duration, excludeId, st
 
 export function KeyNav({ tabs, active, onChange }) {
   return (
-    <div className="flex border border-[#1C1B1A] rounded-lg overflow-hidden shadow-sm">
-      {tabs.map((t, i) => {
-        const isActive = active === t.id;
-        return (
-          <button
-            key={t.id}
-            onClick={() => onChange(t.id)}
-            className={[
-              "relative flex-1 px-4 py-3 text-sm tracking-wide transition-colors font-medium",
-              i !== 0 ? "border-l border-[#1C1B1A]" : "",
-              isActive ? "bg-[#1C1B1A] text-[#FAF7F0]" : "bg-[#FAF7F0] text-[#1C1B1A] hover:bg-[#EDE7DB]",
-            ].join(" ")}
-          >
-            {t.label}
-            {isActive && (
-              <span className="absolute left-1/2 -translate-x-1/2 -bottom-[1px] w-8 h-[3px] bg-[#B8935F] rounded-full" />
-            )}
-          </button>
-        );
-      })}
+    <div className="overflow-x-auto -mx-1 px-1">
+      <div className="flex border border-[#1C1B1A] rounded-lg overflow-hidden shadow-sm min-w-full w-max">
+        {tabs.map((t, i) => {
+          const isActive = active === t.id;
+          return (
+            <button
+              key={t.id}
+              onClick={() => onChange(t.id)}
+              className={[
+                "relative px-4 py-3 text-sm tracking-wide transition-colors font-medium whitespace-nowrap sm:flex-1",
+                i !== 0 ? "border-l border-[#1C1B1A]" : "",
+                isActive ? "bg-[#1C1B1A] text-[#FAF7F0]" : "bg-[#FAF7F0] text-[#1C1B1A] hover:bg-[#EDE7DB]",
+              ].join(" ")}
+            >
+              {t.label}
+              {isActive && (
+                <span className="absolute left-1/2 -translate-x-1/2 -bottom-[1px] w-8 h-[3px] bg-[#B8935F] rounded-full" />
+              )}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
