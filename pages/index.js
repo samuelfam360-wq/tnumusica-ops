@@ -439,7 +439,18 @@ export default function Home() {
           />
         )}
         {tab === "students" && (
-          <StudentsTab students={students} appointments={appointments} onAdd={addStudent} onUpdate={updateStudent} onRemove={removeStudent} />
+          <StudentsTab
+            students={students}
+            appointments={appointments}
+            services={services}
+            onAdd={addStudent}
+            onUpdate={updateStudent}
+            onRemove={removeStudent}
+            onSetAppointmentStatus={setAppointmentStatus}
+            onUpdateAppointment={updateAppointment}
+            onReschedule={rescheduleAppointment}
+            onRemoveAppointment={removeAppointment}
+          />
         )}
         {tab === "rates" && (
           <RatesTab services={services} onAdd={addService} onUpdate={updateService} onRemove={removeService} />

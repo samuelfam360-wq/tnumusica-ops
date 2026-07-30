@@ -76,6 +76,55 @@ export function timeRange(time, durationMinutes) {
   return `${time}–${endTime(time, durationMinutes)}`;
 }
 
+export const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+export function toISODate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export function addDays(dateStr, days) {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + Number(days));
+  return toISODate(d);
+}
+
+export function weekdayAbbrev(dateStr) {
+  return WEEKDAY_LABELS[new Date(dateStr + "T00:00:00").getDay()];
+}
+
+export function toMinutes(time) {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+}
+
+// Returns the list of other appointments on the same date whose time range overlaps.
+export function findClashes(appointments, date, time, duration, excludeId) {
+  const start = toMinutes(time);
+  const end = start + (Number(duration) || 0);
+  return appointments.filter((a) => {
+    if (a.id === excludeId) return false;
+    if (a.date !== date) return false;
+    if (a.status === "cancelled" || a.status === "rescheduled") return false;
+    const aStart = toMinutes(a.time);
+    const aEnd = aStart + (Number(a.duration) || 0);
+    return aStart < end && start < aEnd;
+  });
+}
+
+export function ClashWarning({ appointments, date, time, duration, excludeId, studentMap }) {
+  if (!date || !time) return null;
+  const clashes = findClashes(appointments, date, time, duration, excludeId);
+  if (clashes.length === 0) return null;
+  return (
+    <div className="text-xs text-[#6B2C3E] bg-[#F6EBEE] border border-[#6B2C3E] rounded-md px-2.5 py-1.5">
+      ⚠ Clashes with {clashes.map((c) => `${studentMap[c.student_id]?.name || "another lesson"} at ${c.time}`).join(", ")}
+    </div>
+  );
+}
+
 export function KeyNav({ tabs, active, onChange }) {
   return (
     <div className="flex border border-[#1C1B1A] rounded-lg overflow-hidden shadow-sm">

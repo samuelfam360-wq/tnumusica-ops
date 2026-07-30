@@ -1,58 +1,17 @@
 import { useState, useMemo, useEffect } from "react";
-import { SectionCard, Button, Field, inputCls, LOCATIONS, todayISO, money, StatusPill, endTime, timeRange, SearchableSelect } from "./ui";
-
-const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+import {
+  SectionCard, Button, Field, inputCls, LOCATIONS, todayISO, money, StatusPill,
+  endTime, timeRange, SearchableSelect, WEEKDAY_LABELS, toISODate, addDays,
+  weekdayAbbrev, ClashWarning,
+} from "./ui";
 
 function toISO(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return toISODate(d);
 }
 
 function newId() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-function addDays(dateStr, days) {
-  const d = new Date(dateStr + "T00:00:00");
-  d.setDate(d.getDate() + Number(days));
-  return toISO(d);
-}
-
-function weekdayAbbrev(dateStr) {
-  return WEEKDAY_LABELS[new Date(dateStr + "T00:00:00").getDay()];
-}
-
-function toMinutes(time) {
-  const [h, m] = time.split(":").map(Number);
-  return h * 60 + m;
-}
-
-// Returns the list of other appointments on the same date whose time range overlaps.
-function findClashes(appointments, date, time, duration, excludeId) {
-  const start = toMinutes(time);
-  const end = start + (Number(duration) || 0);
-  return appointments.filter((a) => {
-    if (a.id === excludeId) return false;
-    if (a.date !== date) return false;
-    if (a.status === "cancelled" || a.status === "rescheduled") return false;
-    const aStart = toMinutes(a.time);
-    const aEnd = aStart + (Number(a.duration) || 0);
-    return aStart < end && start < aEnd;
-  });
-}
-
-function ClashWarning({ appointments, date, time, duration, excludeId, studentMap }) {
-  if (!date || !time) return null;
-  const clashes = findClashes(appointments, date, time, duration, excludeId);
-  if (clashes.length === 0) return null;
-  return (
-    <div className="text-xs text-[#6B2C3E] bg-[#F6EBEE] border border-[#6B2C3E] rounded-md px-2.5 py-1.5">
-      ⚠ Clashes with {clashes.map((c) => `${studentMap[c.student_id]?.name || "another lesson"} at ${c.time}`).join(", ")}
-    </div>
-  );
 }
 
 const blankForm = (students) => ({
