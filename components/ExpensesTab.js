@@ -3,6 +3,7 @@ import {
   SectionCard, Button, Field, inputCls, money, todayISO, SearchBox,
   EXPENSE_CATEGORIES, categorizeExpense,
 } from "./ui";
+import { supabase } from "../lib/supabaseClient";
 
 export default function ExpensesTab({ expenses, onAdd, onUpdate, onRemove }) {
   const [form, setForm] = useState({
@@ -16,6 +17,66 @@ export default function ExpensesTab({ expenses, onAdd, onUpdate, onRemove }) {
   });
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState("");
+
+  // Resize/compress the photo client-side before sending — keeps uploads fast
+  // and the per-scan API cost low, while staying readable enough for OCR.
+  function resizeImage(file, maxWidth = 1400) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const scale = Math.min(1, maxWidth / img.width);
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+          resolve(dataUrl.split(",")[1]);
+        };
+        img.onerror = reject;
+        img.src = reader.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function scanReceipt(file) {
+    setScanning(true);
+    setScanError("");
+    try {
+      const imageBase64 = await resizeImage(file);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      const res = await fetch("/api/receipt", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({ imageBase64, mediaType: "image/jpeg" }),
+      });
+      const result = await res.json();
+      if (result.error) throw new Error(result.error);
+      setForm((f) => ({
+        ...f,
+        description: result.merchant || f.description,
+        amount: result.amount != null ? String(result.amount) : f.amount,
+        date: result.date || f.date,
+        category: result.category || f.category,
+        categoryTouched: true,
+        notes: result.notes || f.notes,
+      }));
+    } catch (err) {
+      setScanError("Couldn't read that receipt — please fill in the details manually.");
+    } finally {
+      setScanning(false);
+    }
+  }
 
   function onDescriptionChange(value) {
     setForm((f) => ({
@@ -66,6 +127,23 @@ export default function ExpensesTab({ expenses, onAdd, onUpdate, onRemove }) {
   return (
     <div className="space-y-4">
       <SectionCard title="Add expense / claim">
+        <div className="mb-4 pb-4 border-b border-[#EDE7DB]">
+          <label className="inline-flex items-center gap-2 cursor-pointer">
+            <span className={"px-3.5 py-2 rounded-md text-sm font-medium border border-[#D8D0BE] hover:bg-[#F3EEE2]" + (scanning ? " opacity-50" : "")}>
+              {scanning ? "Reading receipt…" : "📷 Scan a receipt photo"}
+            </span>
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              disabled={scanning}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) scanReceipt(f); e.target.value = ""; }}
+            />
+          </label>
+          <p className="text-xs text-[#8A8272] mt-1">Fills in the description, amount, date, and category below — double-check before saving.</p>
+          {scanError && <p className="text-xs text-[#6B2C3E] mt-1">{scanError}</p>}
+        </div>
         <form onSubmit={submit} className="space-y-3">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <Field label="Date">
