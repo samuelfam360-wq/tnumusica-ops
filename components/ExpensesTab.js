@@ -45,11 +45,24 @@ export default function ExpensesTab({ expenses, onAdd, onUpdate, onRemove }) {
     });
   }
 
+  function readFileAsBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(",")[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
   async function scanReceipt(file) {
     setScanning(true);
     setScanError("");
     try {
-      const imageBase64 = await resizeImage(file);
+      const isPdf = file.type === "application/pdf";
+      if (isPdf && file.size > 10 * 1024 * 1024) {
+        throw new Error("PDF is too large (over 10MB) — try a photo instead, or a smaller PDF.");
+      }
+      const imageBase64 = isPdf ? await readFileAsBase64(file) : await resizeImage(file);
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData?.session?.access_token;
       const res = await fetch("/api/receipt", {
@@ -58,7 +71,7 @@ export default function ExpensesTab({ expenses, onAdd, onUpdate, onRemove }) {
           "Content-Type": "application/json",
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
-        body: JSON.stringify({ imageBase64, mediaType: "image/jpeg" }),
+        body: JSON.stringify({ imageBase64, mediaType: isPdf ? "application/pdf" : "image/jpeg" }),
       });
       const result = await res.json();
       if (result.error) throw new Error(result.error);
@@ -137,12 +150,11 @@ export default function ExpensesTab({ expenses, onAdd, onUpdate, onRemove }) {
         <div className="mb-4 pb-4 border-b border-[#EDE7DB]">
           <label className="inline-flex items-center gap-2 cursor-pointer">
             <span className={"px-3.5 py-2 rounded-md text-sm font-medium border border-[#D8D0BE] hover:bg-[#F3EEE2]" + (scanning ? " opacity-50" : "")}>
-              {scanning ? "Reading receipt…" : "📷 Scan a receipt photo"}
+              {scanning ? "Reading receipt…" : "📷 Scan a receipt (photo or PDF)"}
             </span>
             <input
               type="file"
-              accept="image/*"
-              capture="environment"
+              accept="image/*,application/pdf"
               className="hidden"
               disabled={scanning}
               onChange={(e) => { const f = e.target.files?.[0]; if (f) scanReceipt(f); e.target.value = ""; }}

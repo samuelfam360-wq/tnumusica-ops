@@ -44,8 +44,9 @@ export default async function handler(req, res) {
 
   const { imageBase64, mediaType } = req.body || {};
   if (!imageBase64) {
-    return res.status(400).json({ error: "Missing image" });
+    return res.status(400).json({ error: "Missing file" });
   }
+  const isPdf = mediaType === "application/pdf";
 
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -63,7 +64,9 @@ export default async function handler(req, res) {
           {
             role: "user",
             content: [
-              { type: "image", source: { type: "base64", media_type: mediaType || "image/jpeg", data: imageBase64 } },
+              isPdf
+                ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: imageBase64 } }
+                : { type: "image", source: { type: "base64", media_type: mediaType || "image/jpeg", data: imageBase64 } },
               { type: "text", text: "Extract the receipt data as specified." },
             ],
           },
