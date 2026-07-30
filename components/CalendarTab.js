@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import {
   SectionCard, Button, Field, inputCls, LOCATIONS, todayISO, money, StatusPill,
   endTime, timeRange, SearchableSelect, WEEKDAY_LABELS, toISODate, addDays,
-  weekdayAbbrev, ClashWarning,
+  weekdayAbbrev, ClashWarning, Modal,
 } from "./ui";
 
 function toISO(d) {
@@ -44,6 +44,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
     return new Date(t.getFullYear(), t.getMonth(), 1);
   });
   const [selectedDate, setSelectedDate] = useState(todayISO());
+  const [dayModalOpen, setDayModalOpen] = useState(false);
 
   function pickService(serviceId, targetForm, setTargetForm) {
     const svc = services.find((s) => s.id === serviceId);
@@ -158,6 +159,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
     onAdd(weeks === 1 ? rows[0] : rows);
     setForm({ ...blankForm(students), studentId: form.studentId, date: form.date });
     setSelectedDate(form.date);
+    setDayModalOpen(true);
   }
 
   function startEdit(a) {
@@ -271,7 +273,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                   <span className="font-medium">{studentMap[a.student_id]?.name}</span>
                   <span className="text-[#8A8272]"> · {weekdayAbbrev(a.date)} {a.date} {timeRange(a.time, a.duration)} · marked unavailable{unavailMap[a.date]?.reason ? ` (${unavailMap[a.date].reason})` : ""}</span>
                 </div>
-                <button onClick={() => { setSelectedDate(a.date); startReschedule(a); }} className="text-xs text-[#8A6D3B] hover:underline">Reschedule</button>
+                <button onClick={() => { setSelectedDate(a.date); setDayModalOpen(true); startReschedule(a); }} className="text-xs text-[#8A6D3B] hover:underline">Reschedule</button>
               </div>
             ))}
           </div>
@@ -427,7 +429,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
           <div className="flex items-center gap-2">
             <button onClick={() => goMonth(-1)} className="text-sm px-2 py-1 border border-[#D8D0BE] rounded hover:bg-[#F3EEE2]">‹</button>
             <button
-              onClick={() => { const t = new Date(); setViewMonth(new Date(t.getFullYear(), t.getMonth(), 1)); setSelectedDate(todayISO()); }}
+              onClick={() => { const t = new Date(); setViewMonth(new Date(t.getFullYear(), t.getMonth(), 1)); setSelectedDate(todayISO()); setDayModalOpen(true); }}
               className="text-xs px-2 py-1 border border-[#D8D0BE] rounded hover:bg-[#F3EEE2]"
             >
               Today
@@ -450,7 +452,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
             return (
               <button
                 key={i}
-                onClick={() => setSelectedDate(iso)}
+                onClick={() => { setSelectedDate(iso); setDayModalOpen(true); }}
                 className={[
                   "aspect-square rounded-md flex flex-col items-center justify-center text-sm relative transition-colors",
                   isSelected
@@ -474,7 +476,11 @@ export default function CalendarTab({ appointments, students, studentMap, servic
         </div>
       </SectionCard>
 
-      <SectionCard title={`Schedule — ${new Date(selectedDate + "T00:00:00").toLocaleDateString("en-MY", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`}>
+      <Modal
+        open={dayModalOpen}
+        onClose={() => setDayModalOpen(false)}
+        title={new Date(selectedDate + "T00:00:00").toLocaleDateString("en-MY", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+      >
         <div className="mb-4 pb-4 border-b border-[#EDE7DB]">
           {selectedUnavail ? (
             <div className="flex items-center justify-between bg-[#F6EBEE] border border-[#6B2C3E] rounded-md px-3 py-2">
@@ -647,7 +653,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
             })}
           </div>
         )}
-      </SectionCard>
+      </Modal>
     </div>
   );
 }

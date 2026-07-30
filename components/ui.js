@@ -162,6 +162,24 @@ export function StatCard({ label, value, accent }) {
   );
 }
 
+export function Modal({ open, onClose, title, children }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 bg-black/40" onClick={onClose}>
+      <div
+        className="bg-[#FAF7F0] rounded-lg max-w-2xl w-full max-h-[88vh] overflow-y-auto shadow-xl border border-[#E7E0D2]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[#E7E0D2] sticky top-0 bg-[#FAF7F0] z-10">
+          <h2 style={{ fontFamily: "'Fraunces', serif", fontWeight: 600 }} className="text-lg">{title}</h2>
+          <button onClick={onClose} className="text-[#8A8272] hover:text-[#1C1B1A] text-2xl leading-none px-1">×</button>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 export function SectionCard({ title, action, children }) {
   return (
     <div className="bg-white border border-[#E7E0D2] rounded-lg overflow-hidden">
