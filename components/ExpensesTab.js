@@ -72,7 +72,14 @@ export default function ExpensesTab({ expenses, onAdd, onUpdate, onRemove }) {
         notes: result.notes || f.notes,
       }));
     } catch (err) {
-      setScanError("Couldn't read that receipt — please fill in the details manually.");
+      const msg = String(err.message || err);
+      if (msg.includes("ANTHROPIC_API_KEY")) {
+        setScanError("Receipt scanning isn't set up yet — an ANTHROPIC_API_KEY is missing in Vercel's project settings.");
+      } else if (msg.includes("Not signed in") || msg.includes("Session expired") || msg.includes("Not authorized")) {
+        setScanError("Please sign out and back in, then try again.");
+      } else {
+        setScanError(`Couldn't read that receipt (${msg}) — please fill in the details manually.`);
+      }
     } finally {
       setScanning(false);
     }
