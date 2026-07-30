@@ -260,14 +260,14 @@ export default function StudentsTab({
                               );
                             }
                             return (
-                              <div key={a.id} className="flex items-center justify-between border border-[#EDE7DB] rounded-md px-3 py-2">
-                                <div className="flex items-center gap-3">
-                                  <span style={{ fontFamily: "'IBM Plex Mono', monospace" }} className="text-xs w-32">{weekdayAbbrev(a.date)} {a.date}</span>
-                                  <span style={{ fontFamily: "'IBM Plex Mono', monospace" }} className="text-xs w-28">{timeRange(a.time, a.duration)}</span>
+                              <div key={a.id} className="flex flex-col gap-2 border border-[#EDE7DB] rounded-md px-3 py-2">
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                  <span style={{ fontFamily: "'IBM Plex Mono', monospace" }} className="text-xs whitespace-nowrap">{weekdayAbbrev(a.date)} {a.date}</span>
+                                  <span style={{ fontFamily: "'IBM Plex Mono', monospace" }} className="text-xs whitespace-nowrap">{timeRange(a.time, a.duration)}</span>
                                   <span className="text-xs text-[#8A8272]">{a.location} · {money(a.rate)}</span>
                                   {a.notes && <span className="text-xs text-[#8A8272] italic">— {a.notes}</span>}
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                                   <StatusPill status={a.status} />
                                   {a.status !== "completed" && a.status !== "rescheduled" && (
                                     <button onClick={() => onSetAppointmentStatus(a.id, "completed")} className="text-xs text-[#7A8B6F] hover:underline">Mark done</button>

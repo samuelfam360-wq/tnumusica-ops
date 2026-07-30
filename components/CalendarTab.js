@@ -631,10 +631,10 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                 );
               }
               return (
-                <div key={a.id} className="flex items-center justify-between border border-[#EDE7DB] rounded-md px-3 py-2">
-                  <div className="flex items-center gap-3">
-                    <span style={{ fontFamily: "'IBM Plex Mono', monospace" }} className="text-sm w-28">{timeRange(a.time, a.duration)}</span>
-                    <div>
+                <div key={a.id} className="flex flex-col gap-2 border border-[#EDE7DB] rounded-md px-3 py-2">
+                  <div className="flex items-start gap-3">
+                    <span style={{ fontFamily: "'IBM Plex Mono', monospace" }} className="text-sm whitespace-nowrap">{timeRange(a.time, a.duration)}</span>
+                    <div className="min-w-0">
                       <div className="text-sm font-medium">{studentMap[a.student_id]?.name || "Unknown student"}</div>
                       <div className="text-xs text-[#8A8272]">
                         {a.service_code ? `(${a.service_code}) ` : ""}{a.duration} min · {a.location} · {money(a.rate)}
@@ -650,7 +650,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <StatusPill status={a.status} />
                     {a.status !== "completed" && a.status !== "rescheduled" && (
                       <button onClick={() => onSetStatus(a.id, "completed")} className="text-xs text-[#7A8B6F] hover:underline">Mark done</button>
