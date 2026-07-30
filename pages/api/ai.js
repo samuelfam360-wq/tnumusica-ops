@@ -1,3 +1,5 @@
+import { createClient } from "@supabase/supabase-js";
+
 const SYSTEM_PROMPT = `You are the command interpreter for a solo piano teacher's operations app (T'numusica).
 The user will give you a plain-English instruction. Translate it into a JSON object with an "actions" array and a short "reply" string (one sentence confirming what you did, plain language, no markdown).
 
@@ -24,6 +26,30 @@ export default async function handler(req, res) {
   }
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(500).json({ error: "ANTHROPIC_API_KEY is not set on the server." });
+  }
+
+  // Require a valid, allow-listed session before spending API credits — without
+  // this check, anyone who found this URL could call it directly, with no
+  // login, and run up the bill.
+  const authHeader = req.headers.authorization || "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  if (!token) {
+    return res.status(401).json({ error: "Not signed in." });
+  }
+  const authedSupabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  });
+  const { data: userData, error: userErr } = await authedSupabase.auth.getUser(token);
+  if (userErr || !userData?.user?.email) {
+    return res.status(401).json({ error: "Session expired — please sign in again." });
+  }
+  const { data: allowedRow } = await authedSupabase
+    .from("allowed_users")
+    .select("email")
+    .eq("email", userData.user.email)
+    .maybeSingle();
+  if (!allowedRow) {
+    return res.status(403).json({ error: "Not authorized." });
   }
 
   const { context, instruction } = req.body || {};

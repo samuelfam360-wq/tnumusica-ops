@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { SectionCard, Button, inputCls, todayISO } from "./ui";
+import { supabase } from "../lib/supabaseClient";
 
 export default function AICommandBar({ students, appointments, invoices, onApply }) {
   const [text, setText] = useState("");
@@ -27,9 +28,14 @@ export default function AICommandBar({ students, appointments, invoices, onApply
           .filter((i) => i.status === "unpaid")
           .map((i) => ({ number: i.number, student: nameOf(i.student_id), amount: i.total })),
       };
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
       const res = await fetch("/api/ai", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
         body: JSON.stringify({ context, instruction }),
       });
       const data = await res.json();

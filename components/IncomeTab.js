@@ -1,15 +1,16 @@
 import { useMemo } from "react";
 import { SectionCard, money, todayISO } from "./ui";
 
-export default function IncomeTab({ appointments, invoices, studentMap, materials = [], materialSales = [] }) {
+export default function IncomeTab({ appointments, invoices, studentMap, materials = [], materialSales = [], expenses = [] }) {
   const months = useMemo(() => {
     const set = new Set();
     appointments.forEach((a) => a.status === "completed" && set.add(a.date.slice(0, 7)));
     invoices.forEach((i) => i.status === "paid" && set.add((i.paid_date || i.date).slice(0, 7)));
     materialSales.forEach((s) => set.add(s.date.slice(0, 7)));
+    expenses.forEach((e) => set.add(e.date.slice(0, 7)));
     if (set.size === 0) set.add(todayISO().slice(0, 7));
     return [...set].sort().reverse();
-  }, [appointments, invoices, materialSales]);
+  }, [appointments, invoices, materialSales, expenses]);
 
   const materialMap = useMemo(() => {
     const m = {};
@@ -35,6 +36,7 @@ export default function IncomeTab({ appointments, invoices, studentMap, material
     const materialsRevenue = monthSales.reduce((sum, s) => sum + Number(s.total), 0);
     const materialsCost = monthSales.reduce((sum, s) => sum + costPerUnit(materialMap[s.material_id]) * s.quantity, 0);
     const materialsProfit = materialsRevenue - materialsCost;
+    const generalExpenses = expenses.filter((e) => e.date.slice(0, 7) === m).reduce((sum, e) => sum + Number(e.amount), 0);
     return {
       month: m,
       lessonIncome,
@@ -42,7 +44,8 @@ export default function IncomeTab({ appointments, invoices, studentMap, material
       materialsRevenue,
       materialsCost,
       materialsProfit,
-      total: lessonIncome + invoiceIncome + materialsProfit,
+      generalExpenses,
+      total: lessonIncome + invoiceIncome + materialsProfit - generalExpenses,
     };
   });
 
@@ -51,7 +54,7 @@ export default function IncomeTab({ appointments, invoices, studentMap, material
     let running = 0;
     return ascending.map((r) => {
       const moneyIn = r.lessonIncome + r.invoiceIncome + r.materialsRevenue;
-      const moneyOut = r.materialsCost;
+      const moneyOut = r.materialsCost + r.generalExpenses;
       const net = moneyIn - moneyOut;
       running += net;
       return { month: r.month, moneyIn, moneyOut, net, running };
@@ -119,6 +122,7 @@ export default function IncomeTab({ appointments, invoices, studentMap, material
                 <th className="py-1.5">Lessons</th>
                 <th className="py-1.5">Invoices</th>
                 <th className="py-1.5">Materials</th>
+                <th className="py-1.5">Expenses</th>
                 <th className="py-1.5">Total</th>
               </tr>
             </thead>
@@ -129,6 +133,7 @@ export default function IncomeTab({ appointments, invoices, studentMap, material
                   <td className="py-1.5">{money(r.lessonIncome)}</td>
                   <td className="py-1.5">{money(r.invoiceIncome)}</td>
                   <td className="py-1.5">{money(r.materialsProfit)}</td>
+                  <td className="py-1.5 text-[#6B2C3E]">-{money(r.generalExpenses)}</td>
                   <td className="py-1.5 font-medium">{money(r.total)}</td>
                 </tr>
               ))}

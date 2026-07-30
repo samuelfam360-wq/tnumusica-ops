@@ -51,6 +51,45 @@ export function SearchBox({ value, onChange, placeholder }) {
   );
 }
 
+export const EXPENSE_CATEGORIES = [
+  "Rent / Venue",
+  "Utilities",
+  "Transport / Travel",
+  "Teaching Materials & Supplies",
+  "Marketing & Advertising",
+  "Software & Subscriptions",
+  "Bank Charges & Fees",
+  "Professional Fees",
+  "Equipment & Repairs",
+  "Insurance",
+  "Meals & Entertainment",
+  "Salaries & Wages",
+  "Other / Miscellaneous",
+];
+
+const CATEGORY_RULES = [
+  { category: "Rent / Venue", keywords: ["rent", "sewa", "studio fee", "venue"] },
+  { category: "Utilities", keywords: ["tnb", "electric", "water bill", "unifi", "wifi", "internet", "phone bill", "astro"] },
+  { category: "Transport / Travel", keywords: ["grab", "petrol", "fuel", "toll", "parking", "flight", "taxi"] },
+  { category: "Teaching Materials & Supplies", keywords: ["printing", "workbook", "book", "chord chart", "paper", "sheet music", "stationery", "ink"] },
+  { category: "Marketing & Advertising", keywords: ["facebook ads", "boost post", "instagram ads", "flyer", "banner", "advert"] },
+  { category: "Software & Subscriptions", keywords: ["canva", "zoom", "adobe", "subscription", "supabase", "vercel", "domain", "hosting", "anthropic", "claude", "software"] },
+  { category: "Bank Charges & Fees", keywords: ["bank charge", "processing fee", "transfer fee", "interest charge"] },
+  { category: "Professional Fees", keywords: ["accountant", "lawyer", "audit", "consultation fee", "legal"] },
+  { category: "Equipment & Repairs", keywords: ["piano tuning", "repair", "keyboard", "equipment", "microphone", "laptop"] },
+  { category: "Insurance", keywords: ["insurance", "takaful"] },
+  { category: "Meals & Entertainment", keywords: ["lunch", "dinner", "meal", "coffee", "makan"] },
+  { category: "Salaries & Wages", keywords: ["salary", "wage", "gaji"] },
+];
+
+export function categorizeExpense(description) {
+  const text = (description || "").toLowerCase();
+  for (const rule of CATEGORY_RULES) {
+    if (rule.keywords.some((k) => text.includes(k))) return rule.category;
+  }
+  return "Other / Miscellaneous";
+}
+
 export const LOCATIONS = ["Play Studio", "Xecleration", "Online", "Other"];
 
 export const todayISO = () => {

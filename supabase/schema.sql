@@ -189,3 +189,26 @@ create policy "allowed users full access" on unavailable_dates
   with check (exists (select 1 from allowed_users au where au.email = auth.email()));
 
 grant select, insert, update, delete on unavailable_dates to authenticated;
+
+-- ---------- Expenses / claims (for accountant handoff) ----------
+create table if not exists expenses (
+  id uuid primary key default gen_random_uuid(),
+  date date not null,
+  amount numeric not null default 0,
+  description text not null,
+  category text not null default 'Other / Miscellaneous',
+  paid_via text not null default 'Company',
+  reimbursed boolean not null default false,
+  reimbursed_date date,
+  notes text default '',
+  created_at timestamptz default now()
+);
+
+alter table expenses enable row level security;
+
+create policy "allowed users full access" on expenses
+  for all
+  using (exists (select 1 from allowed_users au where au.email = auth.email()))
+  with check (exists (select 1 from allowed_users au where au.email = auth.email()));
+
+grant select, insert, update, delete on expenses to authenticated;
