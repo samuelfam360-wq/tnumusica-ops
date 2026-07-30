@@ -35,8 +35,30 @@ export default function IncomeTab({ appointments, invoices, studentMap, material
     const materialsRevenue = monthSales.reduce((sum, s) => sum + Number(s.total), 0);
     const materialsCost = monthSales.reduce((sum, s) => sum + costPerUnit(materialMap[s.material_id]) * s.quantity, 0);
     const materialsProfit = materialsRevenue - materialsCost;
-    return { month: m, lessonIncome, invoiceIncome, materialsProfit, total: lessonIncome + invoiceIncome + materialsProfit };
+    return {
+      month: m,
+      lessonIncome,
+      invoiceIncome,
+      materialsRevenue,
+      materialsCost,
+      materialsProfit,
+      total: lessonIncome + invoiceIncome + materialsProfit,
+    };
   });
+
+  const cashFlow = useMemo(() => {
+    const ascending = [...byMonth].sort((a, b) => a.month.localeCompare(b.month));
+    let running = 0;
+    return ascending.map((r) => {
+      const moneyIn = r.lessonIncome + r.invoiceIncome + r.materialsRevenue;
+      const moneyOut = r.materialsCost;
+      const net = moneyIn - moneyOut;
+      running += net;
+      return { month: r.month, moneyIn, moneyOut, net, running };
+    });
+  }, [byMonth]);
+
+  const maxFlow = Math.max(1, ...cashFlow.map((r) => Math.max(r.moneyIn, r.moneyOut)));
 
   const byStudent = useMemo(() => {
     const map = {};
@@ -52,6 +74,40 @@ export default function IncomeTab({ appointments, invoices, studentMap, material
 
   return (
     <div className="space-y-4">
+      <SectionCard title="Cash flow — money in vs. money out">
+        {cashFlow.length === 0 ? (
+          <p className="text-sm text-[#8A8272]">Nothing recorded yet.</p>
+        ) : (
+          <div className="space-y-4">
+            {cashFlow.map((r) => (
+              <div key={r.month} className="space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">{r.month}</span>
+                  <span style={{ fontFamily: "'IBM Plex Mono', monospace" }} className={r.net >= 0 ? "text-[#4C5A43]" : "text-[#6B2C3E]"}>
+                    Net {r.net >= 0 ? "+" : ""}{money(r.net)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-[#8A8272] w-8">In</span>
+                  <div className="flex-1 bg-[#F3EEE2] rounded h-3 overflow-hidden">
+                    <div className="h-full bg-[#7A8B6F]" style={{ width: `${(r.moneyIn / maxFlow) * 100}%` }} />
+                  </div>
+                  <span style={{ fontFamily: "'IBM Plex Mono', monospace" }} className="text-xs w-24 text-right">{money(r.moneyIn)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-[#8A8272] w-8">Out</span>
+                  <div className="flex-1 bg-[#F3EEE2] rounded h-3 overflow-hidden">
+                    <div className="h-full bg-[#6B2C3E]" style={{ width: `${(r.moneyOut / maxFlow) * 100}%` }} />
+                  </div>
+                  <span style={{ fontFamily: "'IBM Plex Mono', monospace" }} className="text-xs w-24 text-right">{money(r.moneyOut)}</span>
+                </div>
+                <div className="text-[11px] text-[#8A8272]">Running balance: <span style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{money(r.running)}</span></div>
+              </div>
+            ))}
+          </div>
+        )}
+      </SectionCard>
+
       <SectionCard title="Income by month">
         {byMonth.length === 0 ? (
           <p className="text-sm text-[#8A8272]">No completed lessons or paid invoices yet.</p>

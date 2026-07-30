@@ -670,6 +670,9 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                     {a.status !== "completed" && a.status !== "rescheduled" && (
                       <button onClick={() => onSetStatus(a.id, "completed")} className="text-xs text-[#7A8B6F] hover:underline">Mark done</button>
                     )}
+                    {a.status === "completed" && (
+                      <button onClick={() => onSetStatus(a.id, "scheduled")} className="text-xs text-[#8A8272] hover:underline">Undo</button>
+                    )}
                     {a.status !== "cancelled" && a.status !== "completed" && a.status !== "rescheduled" && (
                       <>
                         <button onClick={() => startReschedule(a)} className="text-xs text-[#8A6D3B] hover:underline">Reschedule</button>
