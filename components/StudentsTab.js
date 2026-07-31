@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  SectionCard, Button, Field, inputCls, timeRange, SearchBox, LOCATIONS, CENTRES,
+  SectionCard, Button, Field, inputCls, timeRange, SearchBox, LOCATIONS, CENTRES, COURSES, GRADES,
   weekdayAbbrev, endTime, ClashWarning, StatusPill, money, todayISO, DeferredInput,
 } from "./ui";
 
@@ -11,7 +11,7 @@ export default function StudentsTab({
 }) {
   const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
   const [form, setForm] = useState({
-    name: "", rate: "", age: "", grade: "", course: "", centre: "",
+    name: "", rate: "", age: "", gradeChoice: "", gradeOther: "", courseChoice: "", courseOther: "", centre: "",
     lessonDay: "", lessonTime: "", lessonDuration: "", lessonServiceId: "", weeksToSchedule: "12",
     notes: "",
   });
@@ -43,12 +43,14 @@ export default function StudentsTab({
     e.preventDefault();
     if (!form.name.trim()) return;
     const svc = services.find((sv) => sv.id === form.lessonServiceId);
+    const grade = form.gradeChoice === "Other" ? form.gradeOther.trim() : form.gradeChoice;
+    const course = form.courseChoice === "Other" ? form.courseOther.trim() : form.courseChoice;
     onAdd({
       name: form.name.trim(),
       rate: Number(form.rate) || 0,
       age: form.age === "" ? null : Number(form.age),
-      grade: form.grade.trim(),
-      course: form.course.trim(),
+      grade,
+      course,
       centre: form.centre,
       lesson_day: form.lessonDay,
       lesson_time: form.lessonTime,
@@ -61,7 +63,7 @@ export default function StudentsTab({
       _serviceCode: svc ? svc.code : null,
     });
     setForm({
-      name: "", rate: "", age: "", grade: "", course: "", centre: "",
+      name: "", rate: "", age: "", gradeChoice: "", gradeOther: "", courseChoice: "", courseOther: "", centre: "",
       lessonDay: "", lessonTime: "", lessonDuration: "", lessonServiceId: "", weeksToSchedule: "12",
       notes: "",
     });
@@ -152,11 +154,27 @@ export default function StudentsTab({
               <input type="number" className={inputCls} value={form.age} onChange={(e) => setForm({ ...form, age: e.target.value })} />
             </Field>
             <Field label="Grade">
-              <input className={inputCls} placeholder="G2" value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })} />
+              <select className={inputCls} value={form.gradeChoice} onChange={(e) => setForm({ ...form, gradeChoice: e.target.value })}>
+                <option value="">—</option>
+                {GRADES.map((g) => <option key={g}>{g}</option>)}
+              </select>
             </Field>
+            {form.gradeChoice === "Other" && (
+              <Field label="Specify grade">
+                <input className={inputCls} value={form.gradeOther} onChange={(e) => setForm({ ...form, gradeOther: e.target.value })} />
+              </Field>
+            )}
             <Field label="Course">
-              <input className={inputCls} placeholder="Classical" value={form.course} onChange={(e) => setForm({ ...form, course: e.target.value })} />
+              <select className={inputCls} value={form.courseChoice} onChange={(e) => setForm({ ...form, courseChoice: e.target.value })}>
+                <option value="">—</option>
+                {COURSES.map((c) => <option key={c}>{c}</option>)}
+              </select>
             </Field>
+            {form.courseChoice === "Other" && (
+              <Field label="Specify course">
+                <input className={inputCls} value={form.courseOther} onChange={(e) => setForm({ ...form, courseOther: e.target.value })} />
+              </Field>
+            )}
             <Field label="Centre">
               <select className={inputCls} value={form.centre} onChange={(e) => setForm({ ...form, centre: e.target.value })}>
                 <option value="">—</option>
@@ -184,7 +202,7 @@ export default function StudentsTab({
                   {WEEKDAYS.map((d) => <option key={d}>{d}</option>)}
                 </select>
               </Field>
-              <Field label="Time">
+              <Field label={`Time${form.lessonTime && form.lessonDuration ? ` (ends ${endTime(form.lessonTime, form.lessonDuration)})` : ""}`}>
                 <input type="time" className={inputCls} value={form.lessonTime} onChange={(e) => setForm({ ...form, lessonTime: e.target.value })} />
               </Field>
               {services.length > 0 && (
@@ -349,11 +367,27 @@ export default function StudentsTab({
                           <DeferredInput type="number" className={inputCls} value={s.age ?? ""} onCommit={(v) => onUpdate(s.id, { age: v === "" ? null : Number(v) })} />
                         </Field>
                         <Field label="Grade">
-                          <DeferredInput className={inputCls} value={s.grade || ""} onCommit={(v) => onUpdate(s.id, { grade: v })} />
+                          <select className={inputCls} value={GRADES.includes(s.grade) ? s.grade : (s.grade ? "Other" : "")} onChange={(e) => onUpdate(s.id, { grade: e.target.value === "Other" ? "Other" : e.target.value })}>
+                            <option value="">—</option>
+                            {GRADES.map((g) => <option key={g}>{g}</option>)}
+                          </select>
                         </Field>
+                        {(s.grade === "Other" || (s.grade && !GRADES.includes(s.grade))) && (
+                          <Field label="Specify grade">
+                            <DeferredInput className={inputCls} value={s.grade === "Other" ? "" : s.grade} onCommit={(v) => onUpdate(s.id, { grade: v })} />
+                          </Field>
+                        )}
                         <Field label="Course">
-                          <DeferredInput className={inputCls} value={s.course || ""} onCommit={(v) => onUpdate(s.id, { course: v })} />
+                          <select className={inputCls} value={COURSES.includes(s.course) ? s.course : (s.course ? "Other" : "")} onChange={(e) => onUpdate(s.id, { course: e.target.value === "Other" ? "Other" : e.target.value })}>
+                            <option value="">—</option>
+                            {COURSES.map((c) => <option key={c}>{c}</option>)}
+                          </select>
                         </Field>
+                        {(s.course === "Other" || (s.course && !COURSES.includes(s.course))) && (
+                          <Field label="Specify course">
+                            <DeferredInput className={inputCls} value={s.course === "Other" ? "" : s.course} onCommit={(v) => onUpdate(s.id, { course: v })} />
+                          </Field>
+                        )}
                         <Field label="Centre">
                           <select className={inputCls} value={s.centre || ""} onChange={(e) => onUpdate(s.id, { centre: e.target.value })}>
                             <option value="">—</option>

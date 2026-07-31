@@ -119,6 +119,8 @@ export function categorizeExpense(description) {
 
 export const LOCATIONS = ["Play Studio", "Xceleration", "Online", "Other"];
 export const CENTRES = ["Play Studio", "Xceleration", "Personal"];
+export const COURSES = ["Classical", "Chords Playing", "Other"];
+export const GRADES = ["Beginner", "1", "2", "3", "4", "5", "6", "7", "8", "Other"];
 
 export const todayISO = () => {
   const d = new Date();
