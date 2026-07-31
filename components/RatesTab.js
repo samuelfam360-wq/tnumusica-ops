@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { SectionCard, Button, Field, inputCls } from "./ui";
+import { SectionCard, Button, Field, inputCls, DeferredInput } from "./ui";
 
 export default function RatesTab({ services, onAdd, onUpdate, onRemove }) {
   const [form, setForm] = useState({ code: "", label: "", duration: 30, rate: "" });
@@ -55,15 +55,15 @@ export default function RatesTab({ services, onAdd, onUpdate, onRemove }) {
                     <span className="text-xs px-1.5 py-0.5 rounded border border-[#D8D0BE]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
                       {s.code}
                     </span>
-                    <input className={inputCls + " flex-1"} value={s.label} onChange={(e) => onUpdate(s.id, { label: e.target.value })} />
+                    <DeferredInput className={inputCls + " flex-1"} value={s.label} onCommit={(v) => onUpdate(s.id, { label: v })} />
                   </div>
                   <div className="flex items-center gap-1">
-                    <input type="number" className={inputCls + " w-16"} value={s.duration} onChange={(e) => onUpdate(s.id, { duration: Number(e.target.value) || 0 })} />
+                    <DeferredInput type="number" className={inputCls + " w-16"} value={s.duration} onCommit={(v) => onUpdate(s.id, { duration: Number(v) || 0 })} />
                     <span className="text-xs text-[#8A8272]">min</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <span className="text-xs text-[#8A8272]">RM</span>
-                    <input type="number" className={inputCls + " w-20"} value={s.rate} onChange={(e) => onUpdate(s.id, { rate: Number(e.target.value) || 0 })} />
+                    <DeferredInput type="number" className={inputCls + " w-20"} value={s.rate} onCommit={(v) => onUpdate(s.id, { rate: Number(v) || 0 })} />
                   </div>
                   <button onClick={() => onRemove(s.id)} className="text-xs text-[#6B2C3E] hover:underline">Remove</button>
                 </div>

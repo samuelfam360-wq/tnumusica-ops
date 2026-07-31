@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   SectionCard, Button, Field, inputCls, timeRange, SearchBox, LOCATIONS, CENTRES,
-  weekdayAbbrev, endTime, ClashWarning, StatusPill, money, todayISO,
+  weekdayAbbrev, endTime, ClashWarning, StatusPill, money, todayISO, DeferredInput,
 } from "./ui";
 
 export default function StudentsTab({
@@ -176,16 +176,16 @@ export default function StudentsTab({
                     <div className="mt-3 pl-1 space-y-4">
                       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                         <Field label="Name">
-                          <input className={inputCls} value={s.name} onChange={(e) => onUpdate(s.id, { name: e.target.value })} />
+                          <DeferredInput className={inputCls} value={s.name} onCommit={(v) => onUpdate(s.id, { name: v })} />
                         </Field>
                         <Field label="Age">
-                          <input type="number" className={inputCls} value={s.age ?? ""} onChange={(e) => onUpdate(s.id, { age: e.target.value === "" ? null : Number(e.target.value) })} />
+                          <DeferredInput type="number" className={inputCls} value={s.age ?? ""} onCommit={(v) => onUpdate(s.id, { age: v === "" ? null : Number(v) })} />
                         </Field>
                         <Field label="Grade">
-                          <input className={inputCls} value={s.grade || ""} onChange={(e) => onUpdate(s.id, { grade: e.target.value })} />
+                          <DeferredInput className={inputCls} value={s.grade || ""} onCommit={(v) => onUpdate(s.id, { grade: v })} />
                         </Field>
                         <Field label="Course">
-                          <input className={inputCls} value={s.course || ""} onChange={(e) => onUpdate(s.id, { course: e.target.value })} />
+                          <DeferredInput className={inputCls} value={s.course || ""} onCommit={(v) => onUpdate(s.id, { course: v })} />
                         </Field>
                         <Field label="Centre">
                           <select className={inputCls} value={s.centre || ""} onChange={(e) => onUpdate(s.id, { centre: e.target.value })}>
@@ -194,11 +194,11 @@ export default function StudentsTab({
                           </select>
                         </Field>
                         <Field label="Rate (RM)">
-                          <input type="number" className={inputCls} value={s.rate} onChange={(e) => onUpdate(s.id, { rate: Number(e.target.value) || 0 })} />
+                          <DeferredInput type="number" className={inputCls} value={s.rate} onCommit={(v) => onUpdate(s.id, { rate: Number(v) || 0 })} />
                         </Field>
                         <div className="col-span-2 sm:col-span-5">
                           <Field label="Notes">
-                            <input className={inputCls} value={s.notes || ""} onChange={(e) => onUpdate(s.id, { notes: e.target.value })} />
+                            <DeferredInput className={inputCls} value={s.notes || ""} onCommit={(v) => onUpdate(s.id, { notes: v })} />
                           </Field>
                         </div>
                       </div>

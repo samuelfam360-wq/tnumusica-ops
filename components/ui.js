@@ -1,4 +1,31 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+// For fields bound directly to a database value (e.g. inline-editable rows).
+// Typing updates only local state — the save (onCommit) fires once, on blur,
+// instead of on every keystroke. Without this, typing in a field wired
+// straight to onUpdate() triggers a full save-and-refetch per character,
+// which is what makes typing feel slow as the data grows.
+export function DeferredInput({ value, onCommit, type = "text", className, placeholder }) {
+  const [local, setLocal] = useState(value ?? "");
+  useEffect(() => {
+    setLocal(value ?? "");
+  }, [value]);
+  return (
+    <input
+      type={type}
+      className={className}
+      placeholder={placeholder}
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={() => {
+        if (local !== (value ?? "")) onCommit(local);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+      }}
+    />
+  );
+}
 
 export function SearchableSelect({ options, value, onChange, placeholder }) {
   const [query, setQuery] = useState("");
