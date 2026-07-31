@@ -10,7 +10,7 @@ import MaterialsTab from "../components/MaterialsTab";
 import SettingsTab from "../components/SettingsTab";
 import ExpensesTab from "../components/ExpensesTab";
 import AICommandBar from "../components/AICommandBar";
-import { KeyNav, StatCard, PianoMark, money, todayISO } from "../components/ui";
+import { KeyNav, StatCard, PianoMark, money, todayISO, addDays, toISODate, LOCATIONS } from "../components/ui";
 
 export default function Home() {
   const [session, setSession] = useState(undefined); // undefined = loading, null = signed out
@@ -85,8 +85,47 @@ export default function Home() {
   }, [students]);
 
   // ---- Students ----
+  const WEEKDAY_TO_JSDAY = { Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6 };
+  function nextDateForWeekday(weekdayName) {
+    const targetDay = WEEKDAY_TO_JSDAY[weekdayName];
+    if (targetDay === undefined) return null;
+    const today = new Date();
+    const diff = (targetDay - today.getDay() + 7) % 7;
+    const d = new Date(today);
+    d.setDate(d.getDate() + diff);
+    return toISODate(d);
+  }
+  function newSeriesId() {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+
   async function addStudent(payload) {
-    await supabase.from("students").insert(payload);
+    const { _scheduleNow, _weeksToSchedule, _serviceId, _serviceCode, ...studentRow } = payload;
+    const { data: newStudent, error } = await supabase.from("students").insert(studentRow).select().single();
+    if (!error && newStudent && _scheduleNow) {
+      const startDate = nextDateForWeekday(newStudent.lesson_day);
+      if (startDate) {
+        const location = LOCATIONS.includes(newStudent.centre) ? newStudent.centre : LOCATIONS[0];
+        const seriesId = _weeksToSchedule > 1 ? newSeriesId() : null;
+        const weeks = Math.max(1, Number(_weeksToSchedule) || 12);
+        const rows = Array.from({ length: weeks }, (_, i) => ({
+          student_id: newStudent.id,
+          date: addDays(startDate, i * 7),
+          time: newStudent.lesson_time,
+          duration: newStudent.lesson_duration || 30,
+          location,
+          rate: newStudent.rate,
+          service_id: _serviceId,
+          service_code: _serviceCode,
+          status: "scheduled",
+          invoiced: false,
+          series_id: seriesId,
+          notes: "",
+        }));
+        await supabase.from("appointments").insert(rows);
+      }
+    }
     refetchAll();
   }
   async function updateStudent(id, patch) {

@@ -10,7 +10,11 @@ export default function StudentsTab({
   onSetAppointmentStatus, onUpdateAppointment, onReschedule, onRemoveAppointment,
 }) {
   const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-  const [form, setForm] = useState({ name: "", rate: "", age: "", grade: "", course: "", centre: "", lessonDay: "", notes: "" });
+  const [form, setForm] = useState({
+    name: "", rate: "", age: "", grade: "", course: "", centre: "",
+    lessonDay: "", lessonTime: "", lessonDuration: "", lessonServiceId: "", weeksToSchedule: "12",
+    notes: "",
+  });
   const [selectedIds, setSelectedIds] = useState({});
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [bulkEditPatch, setBulkEditPatch] = useState({ centre: "", rate: "" });
@@ -25,9 +29,20 @@ export default function StudentsTab({
   const [reschedApptId, setReschedApptId] = useState(null);
   const [reschedApptForm, setReschedApptForm] = useState(null);
 
+  function pickStudentService(serviceId) {
+    const svc = services.find((sv) => sv.id === serviceId);
+    setForm({
+      ...form,
+      lessonServiceId: serviceId,
+      lessonDuration: svc ? String(svc.duration) : form.lessonDuration,
+      rate: svc ? String(svc.rate) : form.rate,
+    });
+  }
+
   function submit(e) {
     e.preventDefault();
     if (!form.name.trim()) return;
+    const svc = services.find((sv) => sv.id === form.lessonServiceId);
     onAdd({
       name: form.name.trim(),
       rate: Number(form.rate) || 0,
@@ -36,9 +51,20 @@ export default function StudentsTab({
       course: form.course.trim(),
       centre: form.centre,
       lesson_day: form.lessonDay,
+      lesson_time: form.lessonTime,
+      lesson_duration: form.lessonDuration === "" ? null : Number(form.lessonDuration),
       notes: form.notes.trim(),
+      // Generation-only — used once to create the recurring lessons, not stored on the student row.
+      _scheduleNow: !!(form.lessonDay && form.lessonTime),
+      _weeksToSchedule: Number(form.weeksToSchedule) || 12,
+      _serviceId: svc ? svc.id : null,
+      _serviceCode: svc ? svc.code : null,
     });
-    setForm({ name: "", rate: "", age: "", grade: "", course: "", centre: "", lessonDay: "", notes: "" });
+    setForm({
+      name: "", rate: "", age: "", grade: "", course: "", centre: "",
+      lessonDay: "", lessonTime: "", lessonDuration: "", lessonServiceId: "", weeksToSchedule: "12",
+      notes: "",
+    });
   }
 
   function scheduleFor(studentId) {
@@ -117,40 +143,73 @@ export default function StudentsTab({
   return (
     <div className="space-y-4">
       <SectionCard title="Add student">
-        <form onSubmit={submit} className="grid grid-cols-2 sm:grid-cols-3 gap-3 items-end">
-          <Field label="Name">
-            <input className={inputCls} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          </Field>
-          <Field label="Age">
-            <input type="number" className={inputCls} value={form.age} onChange={(e) => setForm({ ...form, age: e.target.value })} />
-          </Field>
-          <Field label="Grade">
-            <input className={inputCls} placeholder="G2" value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })} />
-          </Field>
-          <Field label="Course">
-            <input className={inputCls} placeholder="Classical" value={form.course} onChange={(e) => setForm({ ...form, course: e.target.value })} />
-          </Field>
-          <Field label="Centre">
-            <select className={inputCls} value={form.centre} onChange={(e) => setForm({ ...form, centre: e.target.value })}>
-              <option value="">—</option>
-              {CENTRES.map((c) => <option key={c}>{c}</option>)}
-            </select>
-          </Field>
-          <Field label="Permanent lesson day">
-            <select className={inputCls} value={form.lessonDay} onChange={(e) => setForm({ ...form, lessonDay: e.target.value })}>
-              <option value="">—</option>
-              {WEEKDAYS.map((d) => <option key={d}>{d}</option>)}
-            </select>
-          </Field>
-          <Field label="Default rate (RM/lesson)">
-            <input type="number" className={inputCls} value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value })} />
-          </Field>
-          <Field label="Notes">
-            <input className={inputCls} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-          </Field>
-          <div className="col-span-2 sm:col-span-3">
-            <Button type="submit">Add student</Button>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 items-end">
+            <Field label="Name">
+              <input className={inputCls} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            </Field>
+            <Field label="Age">
+              <input type="number" className={inputCls} value={form.age} onChange={(e) => setForm({ ...form, age: e.target.value })} />
+            </Field>
+            <Field label="Grade">
+              <input className={inputCls} placeholder="G2" value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })} />
+            </Field>
+            <Field label="Course">
+              <input className={inputCls} placeholder="Classical" value={form.course} onChange={(e) => setForm({ ...form, course: e.target.value })} />
+            </Field>
+            <Field label="Centre">
+              <select className={inputCls} value={form.centre} onChange={(e) => setForm({ ...form, centre: e.target.value })}>
+                <option value="">—</option>
+                {CENTRES.map((c) => <option key={c}>{c}</option>)}
+              </select>
+            </Field>
+            <Field label="Default rate (RM/lesson)">
+              <input type="number" className={inputCls} value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value })} />
+            </Field>
+            <div className="col-span-2 sm:col-span-3">
+              <Field label="Notes">
+                <input className={inputCls} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+              </Field>
+            </div>
           </div>
+
+          <div className="border-t border-[#EDE7DB] pt-3">
+            <div className="text-xs uppercase tracking-wide text-[#8A8272] mb-2">
+              Weekly lesson time — fill this in and lessons are added to the calendar automatically, no need to add them separately after
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 items-end">
+              <Field label="Permanent day">
+                <select className={inputCls} value={form.lessonDay} onChange={(e) => setForm({ ...form, lessonDay: e.target.value })}>
+                  <option value="">—</option>
+                  {WEEKDAYS.map((d) => <option key={d}>{d}</option>)}
+                </select>
+              </Field>
+              <Field label="Time">
+                <input type="time" className={inputCls} value={form.lessonTime} onChange={(e) => setForm({ ...form, lessonTime: e.target.value })} />
+              </Field>
+              {services.length > 0 && (
+                <Field label="Service / grade code">
+                  <select className={inputCls} value={form.lessonServiceId} onChange={(e) => pickStudentService(e.target.value)}>
+                    <option value="">Custom</option>
+                    {services.map((s) => <option key={s.id} value={s.id}>{s.code} — {s.label} ({s.duration} min)</option>)}
+                  </select>
+                </Field>
+              )}
+              <Field label="Duration (min)">
+                <input type="number" className={inputCls} placeholder="30" value={form.lessonDuration} onChange={(e) => setForm({ ...form, lessonDuration: e.target.value, lessonServiceId: "" })} />
+              </Field>
+              <Field label="Schedule for how many weeks">
+                <input type="number" min="1" max="52" className={inputCls} value={form.weeksToSchedule} onChange={(e) => setForm({ ...form, weeksToSchedule: e.target.value })} />
+              </Field>
+            </div>
+            {form.lessonDay && form.lessonTime && (
+              <p className="text-xs text-[#8A8272] mt-2">
+                Location will follow the Centre picked above (defaults to Play Studio if Centre is blank or Personal).
+              </p>
+            )}
+          </div>
+
+          <Button type="submit">Add student</Button>
         </form>
       </SectionCard>
 

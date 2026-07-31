@@ -117,7 +117,7 @@ export function categorizeExpense(description) {
   return "Other / Miscellaneous";
 }
 
-export const LOCATIONS = ["Play Studio", "Xecleration", "Online", "Other"];
+export const LOCATIONS = ["Play Studio", "Xceleration", "Online", "Other"];
 export const CENTRES = ["Play Studio", "Xceleration", "Personal"];
 
 export const todayISO = () => {

@@ -309,7 +309,11 @@ export default function CalendarTab({ appointments, students, studentMap, servic
               <SearchableSelect
                 options={students.map((s) => ({ value: s.id, label: s.name }))}
                 value={form.studentId}
-                onChange={(v) => setForm({ ...form, studentId: v })}
+                onChange={(v) => {
+                  const picked = studentMap[v];
+                  const matchedLocation = picked && LOCATIONS.includes(picked.centre) ? picked.centre : form.location;
+                  setForm({ ...form, studentId: v, location: matchedLocation });
+                }}
                 placeholder="Search student…"
               />
             </Field>

@@ -34,6 +34,8 @@ create table if not exists students (
   course text default '',
   centre text default '',
   lesson_day text default '',
+  lesson_time text default '',
+  lesson_duration int,
   created_at timestamptz default now()
 );
 
