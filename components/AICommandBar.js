@@ -62,7 +62,14 @@ export default function AICommandBar({ students, appointments, invoices, service
       ].slice(-12));
       setLog((l) => [{ you: instruction, reply: data.reply || "Done.", ok: true }, ...l].slice(0, 8));
     } catch (err) {
-      setLog((l) => [{ you: instruction, reply: "Couldn't process that — try rephrasing.", ok: false }, ...l].slice(0, 8));
+      const msg = String(err.message || err);
+      let shown = `Couldn't process that (${msg}) — try rephrasing.`;
+      if (msg.includes("credit balance") || msg.includes("ANTHROPIC_API_KEY")) {
+        shown = "The AI features need Anthropic credit topped up — check console.anthropic.com → Plans & Billing.";
+      } else if (msg.includes("Not signed in") || msg.includes("Session expired") || msg.includes("Not authorized")) {
+        shown = "Please sign out and back in, then try again.";
+      }
+      setLog((l) => [{ you: instruction, reply: shown, ok: false }, ...l].slice(0, 8));
     } finally {
       setBusy(false);
     }
