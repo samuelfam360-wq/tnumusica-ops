@@ -97,6 +97,14 @@ export default function Home() {
     await supabase.from("students").delete().eq("id", id);
     refetchAll();
   }
+  async function bulkRemoveStudents(ids) {
+    await supabase.from("students").delete().in("id", ids);
+    refetchAll();
+  }
+  async function bulkUpdateStudents(ids, patch) {
+    await supabase.from("students").update(patch).in("id", ids);
+    refetchAll();
+  }
 
   // ---- Services / rates ----
   async function addService(payload) {
@@ -499,6 +507,8 @@ export default function Home() {
             onAdd={addStudent}
             onUpdate={updateStudent}
             onRemove={removeStudent}
+            onBulkRemoveStudents={bulkRemoveStudents}
+            onBulkUpdateStudents={bulkUpdateStudents}
             onSetAppointmentStatus={setAppointmentStatus}
             onUpdateAppointment={updateAppointment}
             onReschedule={rescheduleAppointment}

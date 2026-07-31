@@ -33,6 +33,7 @@ create table if not exists students (
   grade text default '',
   course text default '',
   centre text default '',
+  lesson_day text default '',
   created_at timestamptz default now()
 );
 

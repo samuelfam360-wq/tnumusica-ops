@@ -6,9 +6,14 @@ import {
 
 export default function StudentsTab({
   students, appointments = [], services = [], onAdd, onUpdate, onRemove,
+  onBulkRemoveStudents, onBulkUpdateStudents,
   onSetAppointmentStatus, onUpdateAppointment, onReschedule, onRemoveAppointment,
 }) {
-  const [form, setForm] = useState({ name: "", rate: "", age: "", grade: "", course: "", centre: "", notes: "" });
+  const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const [form, setForm] = useState({ name: "", rate: "", age: "", grade: "", course: "", centre: "", lessonDay: "", notes: "" });
+  const [selectedIds, setSelectedIds] = useState({});
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  const [bulkEditPatch, setBulkEditPatch] = useState({ centre: "", rate: "" });
   const [search, setSearch] = useState("");
   const [centreFilter, setCentreFilter] = useState("");
   const [expanded, setExpanded] = useState(null);
@@ -27,9 +32,10 @@ export default function StudentsTab({
       grade: form.grade.trim(),
       course: form.course.trim(),
       centre: form.centre,
+      lesson_day: form.lessonDay,
       notes: form.notes.trim(),
     });
-    setForm({ name: "", rate: "", age: "", grade: "", course: "", centre: "", notes: "" });
+    setForm({ name: "", rate: "", age: "", grade: "", course: "", centre: "", lessonDay: "", notes: "" });
   }
 
   function scheduleFor(studentId) {
@@ -121,6 +127,12 @@ export default function StudentsTab({
               {CENTRES.map((c) => <option key={c}>{c}</option>)}
             </select>
           </Field>
+          <Field label="Permanent lesson day">
+            <select className={inputCls} value={form.lessonDay} onChange={(e) => setForm({ ...form, lessonDay: e.target.value })}>
+              <option value="">—</option>
+              {WEEKDAYS.map((d) => <option key={d}>{d}</option>)}
+            </select>
+          </Field>
           <Field label="Default rate (RM/lesson)">
             <input type="number" className={inputCls} value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value })} />
           </Field>
@@ -148,13 +160,87 @@ export default function StudentsTab({
         {filtered.length === 0 ? (
           <p className="text-sm text-[#8A8272]">No students match.</p>
         ) : (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 mb-1 border-b border-[#EDE7DB]">
+              <label className="flex items-center gap-2 text-xs text-[#5C564A]">
+                <input
+                  type="checkbox"
+                  checked={filtered.length > 0 && filtered.every((s) => selectedIds[s.id])}
+                  onChange={(e) => {
+                    const next = { ...selectedIds };
+                    filtered.forEach((s) => { next[s.id] = e.target.checked; });
+                    setSelectedIds(next);
+                  }}
+                />
+                Select all ({filtered.length})
+              </label>
+              {Object.values(selectedIds).some(Boolean) && (
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-[#8A8272]">{Object.values(selectedIds).filter(Boolean).length} selected</span>
+                  <button onClick={() => setBulkEditOpen(!bulkEditOpen)} className="text-xs text-[#1C1B1A] hover:underline">Bulk edit</button>
+                  <button
+                    onClick={() => {
+                      const ids = Object.entries(selectedIds).filter(([, v]) => v).map(([k]) => k);
+                      if (ids.length === 0) return;
+                      if (window.confirm(`Remove ${ids.length} student(s)? This also removes their lesson history. This can't be undone.`)) {
+                        onBulkRemoveStudents(ids);
+                        setSelectedIds({});
+                      }
+                    }}
+                    className="text-xs text-[#6B2C3E] hover:underline"
+                  >
+                    Remove selected
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {bulkEditOpen && (
+              <div className="border border-[#B8935F] rounded-md p-3 mb-3 space-y-2">
+                <div className="text-sm font-medium">Bulk edit selected students</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="New centre (blank = keep)">
+                    <select className={inputCls} value={bulkEditPatch.centre} onChange={(e) => setBulkEditPatch({ ...bulkEditPatch, centre: e.target.value })}>
+                      <option value="">— keep —</option>
+                      {CENTRES.map((c) => <option key={c}>{c}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="New rate RM (blank = keep)">
+                    <input type="number" className={inputCls} value={bulkEditPatch.rate} onChange={(e) => setBulkEditPatch({ ...bulkEditPatch, rate: e.target.value })} />
+                  </Field>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => {
+                      const ids = Object.entries(selectedIds).filter(([, v]) => v).map(([k]) => k);
+                      const patch = {};
+                      if (bulkEditPatch.centre) patch.centre = bulkEditPatch.centre;
+                      if (bulkEditPatch.rate !== "") patch.rate = Number(bulkEditPatch.rate) || 0;
+                      if (ids.length > 0 && Object.keys(patch).length > 0) onBulkUpdateStudents(ids, patch);
+                      setBulkEditOpen(false);
+                      setBulkEditPatch({ centre: "", rate: "" });
+                    }}
+                  >
+                    Apply to selected
+                  </Button>
+                  <Button variant="secondary" onClick={() => setBulkEditOpen(false)}>Cancel</Button>
+                </div>
+              </div>
+            )}
+
           <div className="divide-y divide-[#EDE7DB]">
             {filtered.map((s) => {
               const schedule = scheduleFor(s.id);
               const upcoming = schedule.filter((a) => a.status === "scheduled" && a.date >= todayISO());
               const isOpen = expanded === s.id;
               return (
-                <div key={s.id} className="py-2.5">
+                <div key={s.id} className="py-2.5 flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={!!selectedIds[s.id]}
+                    onChange={(e) => setSelectedIds({ ...selectedIds, [s.id]: e.target.checked })}
+                  />
                   <button onClick={() => setExpanded(isOpen ? null : s.id)} className="w-full flex items-center justify-between text-left">
                     <div>
                       <div className="text-sm font-medium">
@@ -163,6 +249,7 @@ export default function StudentsTab({
                         {s.grade && <span className="text-[#8A8272] font-normal"> · {s.grade}</span>}
                         {s.course && <span className="text-[#8A8272] font-normal"> · {s.course}</span>}
                         {s.centre && <span className="text-[#8A8272] font-normal"> · {s.centre}</span>}
+                        {s.lesson_day && <span className="text-[#8A8272] font-normal"> · {s.lesson_day}</span>}
                       </div>
                       {s.notes && <div className="text-xs text-[#8A8272]">{s.notes}</div>}
                     </div>
@@ -174,7 +261,7 @@ export default function StudentsTab({
 
                   {isOpen && (
                     <div className="mt-3 pl-1 space-y-4">
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
                         <Field label="Name">
                           <DeferredInput className={inputCls} value={s.name} onCommit={(v) => onUpdate(s.id, { name: v })} />
                         </Field>
@@ -193,6 +280,12 @@ export default function StudentsTab({
                             {CENTRES.map((c) => <option key={c}>{c}</option>)}
                           </select>
                         </Field>
+                        <Field label="Lesson day">
+                          <select className={inputCls} value={s.lesson_day || ""} onChange={(e) => onUpdate(s.id, { lesson_day: e.target.value })}>
+                            <option value="">—</option>
+                            {WEEKDAYS.map((d) => <option key={d}>{d}</option>)}
+                          </select>
+                        </Field>
                         <Field label="Rate (RM)">
                           <DeferredInput type="number" className={inputCls} value={s.rate} onCommit={(v) => onUpdate(s.id, { rate: Number(v) || 0 })} />
                         </Field>
@@ -205,7 +298,7 @@ export default function StudentsTab({
 
                       <div className="flex items-center justify-between">
                         <div className="text-xs uppercase tracking-wide text-[#8A8272]">Lessons ({schedule.length})</div>
-                        <button onClick={() => onRemove(s.id)} className="text-xs text-[#6B2C3E] hover:underline">Remove student</button>
+                        <button onClick={() => { if (window.confirm(`Remove ${s.name}? This also removes their lesson history.`)) onRemove(s.id); }} className="text-xs text-[#6B2C3E] hover:underline">Remove student</button>
                       </div>
 
                       {schedule.length === 0 ? (
@@ -320,6 +413,7 @@ export default function StudentsTab({
               );
             })}
           </div>
+          </>
         )}
       </SectionCard>
     </div>
