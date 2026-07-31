@@ -16,6 +16,9 @@ export default function StudentsTab({
   const [bulkEditPatch, setBulkEditPatch] = useState({ centre: "", rate: "" });
   const [search, setSearch] = useState("");
   const [centreFilter, setCentreFilter] = useState("");
+  const [dayFilter, setDayFilter] = useState("");
+  const [courseFilter, setCourseFilter] = useState("");
+  const [gradeFilter, setGradeFilter] = useState("");
   const [expanded, setExpanded] = useState(null);
   const [editingApptId, setEditingApptId] = useState(null);
   const [editApptForm, setEditApptForm] = useState(null);
@@ -97,8 +100,14 @@ export default function StudentsTab({
     setReschedApptForm(null);
   }
 
+  const uniqueCourses = [...new Set(students.map((s) => s.course).filter(Boolean))].sort();
+  const uniqueGrades = [...new Set(students.map((s) => s.grade).filter(Boolean))].sort();
+
   const filtered = students
     .filter((s) => !centreFilter || s.centre === centreFilter)
+    .filter((s) => !dayFilter || s.lesson_day === dayFilter)
+    .filter((s) => !courseFilter || s.course === courseFilter)
+    .filter((s) => !gradeFilter || s.grade === gradeFilter)
     .filter((s) => {
       if (!search.trim()) return true;
       const q = search.trim().toLowerCase();
@@ -148,10 +157,22 @@ export default function StudentsTab({
       <SectionCard
         title={`Students (${students.length})`}
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <select className={inputCls} value={centreFilter} onChange={(e) => setCentreFilter(e.target.value)}>
               <option value="">All centres</option>
               {CENTRES.map((c) => <option key={c}>{c}</option>)}
+            </select>
+            <select className={inputCls} value={dayFilter} onChange={(e) => setDayFilter(e.target.value)}>
+              <option value="">All days</option>
+              {WEEKDAYS.map((d) => <option key={d}>{d}</option>)}
+            </select>
+            <select className={inputCls} value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)}>
+              <option value="">All courses</option>
+              {uniqueCourses.map((c) => <option key={c}>{c}</option>)}
+            </select>
+            <select className={inputCls} value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)}>
+              <option value="">All grades</option>
+              {uniqueGrades.map((g) => <option key={g}>{g}</option>)}
             </select>
             <SearchBox value={search} onChange={setSearch} placeholder="Search by name, grade, course…" />
           </div>
