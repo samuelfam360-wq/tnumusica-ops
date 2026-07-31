@@ -102,6 +102,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
   }, [bulkOpen, bulkStudentId]);
 
   function openBulkFor(studentId) {
+    setDayModalOpen(false);
     setBulkOpen(true);
     setBulkStudentId(studentId);
     setBulkPatch({ time: "", duration: "", location: "", rate: "", shiftDays: "" });
@@ -376,7 +377,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
       <SectionCard
         title="Bulk edit a student's upcoming lessons"
         action={
-          <button onClick={() => setBulkOpen(true)} className="text-xs text-[#1C1B1A] hover:underline">
+          <button onClick={() => { setDayModalOpen(false); setBulkOpen(true); }} className="text-xs text-[#1C1B1A] hover:underline">
             Open
           </button>
         }
