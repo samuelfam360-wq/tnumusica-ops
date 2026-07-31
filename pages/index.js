@@ -360,7 +360,24 @@ export default function Home() {
       switch (act.type) {
         case "add_student": {
           if (!findStudent(act.name)) {
-            await supabase.from("students").insert({ name: act.name, rate: Number(act.rate) || 0, notes: act.notes || "" });
+            await supabase.from("students").insert({
+              name: act.name, rate: Number(act.rate) || 0, notes: act.notes || "",
+              age: act.age ?? null, grade: act.grade || "", course: act.course || "", centre: act.centre || "",
+            });
+          }
+          break;
+        }
+        case "update_student": {
+          const s = findStudent(act.studentName);
+          if (s && act.patch) {
+            const patch = {};
+            if (act.patch.rate != null) patch.rate = Number(act.patch.rate) || 0;
+            if (act.patch.age != null) patch.age = Number(act.patch.age);
+            if (act.patch.grade != null) patch.grade = act.patch.grade;
+            if (act.patch.course != null) patch.course = act.patch.course;
+            if (act.patch.centre != null) patch.centre = act.patch.centre;
+            if (act.patch.notes != null) patch.notes = act.patch.notes;
+            if (Object.keys(patch).length > 0) await supabase.from("students").update(patch).eq("id", s.id);
           }
           break;
         }
@@ -389,11 +406,28 @@ export default function Home() {
             date: act.date,
             time: act.time || "15:00",
             duration: Number(act.duration) || 60,
-            location: ["Play Studio", "Xecleration", "Online", "Other"].includes(act.location) ? act.location : "Play Studio",
+            location: LOCATIONS.includes(act.location) ? act.location : "Play Studio",
             rate: act.rate != null ? Number(act.rate) : s.rate,
+            notes: act.notes || "",
             status: "scheduled",
             invoiced: false,
           });
+          break;
+        }
+        case "reschedule_appointment": {
+          const s = findStudent(act.studentName);
+          if (s) {
+            let q = supabase.from("appointments").select("*").eq("student_id", s.id).eq("date", act.date).eq("status", "scheduled");
+            if (act.time) q = q.eq("time", act.time);
+            const { data: matches } = await q;
+            const original = matches && matches[0];
+            if (original) {
+              await rescheduleAppointment(original, {
+                reason: act.reason || "",
+                slots: [{ date: act.newDate, time: act.newTime, duration: original.duration, rate: original.rate }],
+              });
+            }
+          }
           break;
         }
         case "set_appointment_status": {
@@ -435,6 +469,61 @@ export default function Home() {
             await supabase.from("invoices").update({ status: "paid", paid_date: todayISO() }).eq("number", act.invoiceNumber);
           } else if (s) {
             await supabase.from("invoices").update({ status: "paid", paid_date: todayISO() }).eq("student_id", s.id).eq("status", "unpaid");
+          }
+          break;
+        }
+        case "mark_unavailable":
+        case "mark_holiday": {
+          const reasonType = act.type === "mark_holiday" ? "holiday" : "personal";
+          await supabase.from("unavailable_dates").upsert({ date: act.date, reason: act.reason || "", reason_type: reasonType });
+          if (reasonType === "holiday") {
+            const affected = appointments.filter((a) => a.date === act.date && a.status === "scheduled").map((a) => a.id);
+            if (affected.length > 0) {
+              await supabase.from("appointments").update({ status: "cancelled" }).in("id", affected);
+            }
+          }
+          break;
+        }
+        case "unmark_unavailable": {
+          await supabase.from("unavailable_dates").delete().eq("date", act.date);
+          break;
+        }
+        case "add_expense": {
+          await supabase.from("expenses").insert({
+            date: act.date || todayISO(),
+            amount: Number(act.amount) || 0,
+            description: act.description || "Expense",
+            category: act.category || "Other / Miscellaneous",
+            paid_via: act.paidVia === "Personal" ? "Personal" : "Company",
+            reimbursed: act.paidVia !== "Personal",
+          });
+          break;
+        }
+        case "add_material": {
+          await supabase.from("materials").insert({
+            name: act.name,
+            cost_mode: act.costMode === "per_unit" ? "per_unit" : "batch",
+            batch_cost: Number(act.batchCost) || 0,
+            batch_quantity: Number(act.batchQuantity) || 0,
+            per_unit_cost: Number(act.perUnitCost) || 0,
+          });
+          break;
+        }
+        case "log_material_sale": {
+          const mat = materials.find((m) => m.name.toLowerCase() === String(act.productName || "").toLowerCase());
+          if (mat) {
+            const s = act.studentName ? findStudent(act.studentName) : null;
+            const quantity = Number(act.quantity) || 1;
+            const unitPrice = Number(act.unitPrice) || 0;
+            await supabase.from("material_sales").insert({
+              material_id: mat.id,
+              student_id: s ? s.id : null,
+              sale_type: act.saleType === "bulk" ? "bulk" : "individual",
+              quantity,
+              unit_price: unitPrice,
+              total: quantity * unitPrice,
+              date: act.date || todayISO(),
+            });
           }
           break;
         }
@@ -511,7 +600,16 @@ export default function Home() {
           <StatCard label="Active students" value={students.length} />
         </div>
 
-        <AICommandBar students={students} appointments={appointments} invoices={invoices} onApply={applyAIActions} />
+        <AICommandBar
+          students={students}
+          appointments={appointments}
+          invoices={invoices}
+          services={services}
+          materials={materials}
+          expenses={expenses}
+          unavailableDates={unavailableDates}
+          onApply={applyAIActions}
+        />
 
         <KeyNav
           tabs={[
