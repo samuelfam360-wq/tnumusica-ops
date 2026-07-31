@@ -86,14 +86,19 @@ export default function Home() {
 
   // ---- Students ----
   const WEEKDAY_TO_JSDAY = { Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6 };
-  function nextDateForWeekday(weekdayName) {
+  function nextDateForWeekday(weekdayName, fromDate) {
     const targetDay = WEEKDAY_TO_JSDAY[weekdayName];
     if (targetDay === undefined) return null;
-    const today = new Date();
-    const diff = (targetDay - today.getDay() + 7) % 7;
-    const d = new Date(today);
+    const base = fromDate ? new Date(fromDate + "T00:00:00") : new Date();
+    const diff = (targetDay - base.getDay() + 7) % 7;
+    const d = new Date(base);
     d.setDate(d.getDate() + diff);
     return toISODate(d);
+  }
+  function nextDateForWeekdayAfter(weekdayName, afterDateStr) {
+    const d = new Date(afterDateStr + "T00:00:00");
+    d.setDate(d.getDate() + 1);
+    return nextDateForWeekday(weekdayName, toISODate(d));
   }
   function newSeriesId() {
     if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
@@ -128,6 +133,40 @@ export default function Home() {
     }
     refetchAll();
   }
+
+  async function extendStudentSchedule(studentId, weeksToAdd) {
+    const student = students.find((s) => s.id === studentId);
+    if (!student || !student.lesson_day || !student.lesson_time) return;
+
+    // Continue from whichever is later: the student's last non-cancelled lesson,
+    // or today — so this never creates a gap or overlaps what's already there.
+    const relevantDates = appointments
+      .filter((a) => a.student_id === studentId && a.status !== "cancelled")
+      .map((a) => a.date);
+    const lastDate = relevantDates.length > 0 ? relevantDates.sort().slice(-1)[0] : null;
+    const anchor = lastDate && lastDate >= todayISO() ? lastDate : addDays(todayISO(), -1);
+    const startDate = nextDateForWeekdayAfter(student.lesson_day, anchor);
+    if (!startDate) return;
+
+    const location = LOCATIONS.includes(student.centre) ? student.centre : LOCATIONS[0];
+    const weeks = Math.max(1, Number(weeksToAdd) || 12);
+    const seriesId = weeks > 1 ? newSeriesId() : null;
+    const rows = Array.from({ length: weeks }, (_, i) => ({
+      student_id: student.id,
+      date: addDays(startDate, i * 7),
+      time: student.lesson_time,
+      duration: student.lesson_duration || 30,
+      location,
+      rate: student.rate,
+      status: "scheduled",
+      invoiced: false,
+      series_id: seriesId,
+      notes: "",
+    }));
+    await supabase.from("appointments").insert(rows);
+    refetchAll();
+  }
+
   async function updateStudent(id, patch) {
     await supabase.from("students").update(patch).eq("id", id);
     refetchAll();
@@ -654,6 +693,7 @@ export default function Home() {
             onRemove={removeStudent}
             onBulkRemoveStudents={bulkRemoveStudents}
             onBulkUpdateStudents={bulkUpdateStudents}
+            onExtendSchedule={extendStudentSchedule}
             onSetAppointmentStatus={setAppointmentStatus}
             onUpdateAppointment={updateAppointment}
             onReschedule={rescheduleAppointment}

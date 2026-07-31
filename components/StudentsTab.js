@@ -6,10 +6,11 @@ import {
 
 export default function StudentsTab({
   students, appointments = [], services = [], onAdd, onUpdate, onRemove,
-  onBulkRemoveStudents, onBulkUpdateStudents,
+  onBulkRemoveStudents, onBulkUpdateStudents, onExtendSchedule,
   onSetAppointmentStatus, onUpdateAppointment, onReschedule, onRemoveAppointment,
 }) {
   const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const [extendWeeks, setExtendWeeks] = useState({});
   const [form, setForm] = useState({
     name: "", rate: "", age: "", gradeChoice: "", gradeOther: "", courseChoice: "", courseOther: "", centre: "",
     lessonDay: "", lessonTime: "", lessonDuration: "", lessonServiceId: "", weeksToSchedule: "12",
@@ -400,6 +401,12 @@ export default function StudentsTab({
                             {WEEKDAYS.map((d) => <option key={d}>{d}</option>)}
                           </select>
                         </Field>
+                        <Field label="Lesson time">
+                          <DeferredInput type="time" className={inputCls} value={s.lesson_time || ""} onCommit={(v) => onUpdate(s.id, { lesson_time: v })} />
+                        </Field>
+                        <Field label="Lesson duration (min)">
+                          <DeferredInput type="number" className={inputCls} value={s.lesson_duration ?? ""} onCommit={(v) => onUpdate(s.id, { lesson_duration: v === "" ? null : Number(v) })} />
+                        </Field>
                         <Field label="Rate (RM)">
                           <DeferredInput type="number" className={inputCls} value={s.rate} onCommit={(v) => onUpdate(s.id, { rate: Number(v) || 0 })} />
                         </Field>
@@ -409,6 +416,30 @@ export default function StudentsTab({
                           </Field>
                         </div>
                       </div>
+
+                      {s.lesson_day && s.lesson_time && (
+                        <div className="border border-[#EDE7DB] rounded-md p-3 flex flex-wrap items-end gap-3">
+                          <div className="text-xs text-[#5C564A]">
+                            Extend recurring {s.lesson_day} {s.lesson_time} lessons further — continues right after their last scheduled one, no gaps or duplicates.
+                          </div>
+                          <Field label="Add how many more weeks">
+                            <input
+                              type="number"
+                              min="1"
+                              max="52"
+                              className={inputCls + " w-24"}
+                              value={extendWeeks[s.id] ?? "12"}
+                              onChange={(e) => setExtendWeeks({ ...extendWeeks, [s.id]: e.target.value })}
+                            />
+                          </Field>
+                          <Button
+                            variant="secondary"
+                            onClick={() => onExtendSchedule(s.id, Number(extendWeeks[s.id] ?? 12) || 12)}
+                          >
+                            Generate more lessons
+                          </Button>
+                        </div>
+                      )}
 
                       <div className="flex items-center justify-between">
                         <div className="text-xs uppercase tracking-wide text-[#8A8272]">Lessons ({schedule.length})</div>
