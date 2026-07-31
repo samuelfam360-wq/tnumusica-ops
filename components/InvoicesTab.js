@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { jsPDF } from "jspdf";
-import { SectionCard, Button, Field, inputCls, money, todayISO, SearchableSelect, SearchBox } from "./ui";
+import { SectionCard, Button, Field, inputCls, money, todayISO, SearchableSelect, SearchBox, CENTRES } from "./ui";
 
 function downloadInvoicePdf(invoice, student, biz = {}) {
   const isPaid = invoice.status === "paid";
@@ -52,7 +52,7 @@ function downloadInvoicePdf(invoice, student, biz = {}) {
   doc.text(isPaid ? "Received from:" : "Bill to:", left, y);
   doc.setFont("helvetica", "normal");
   y += 14;
-  doc.text(student?.name || "Unknown student", left, y);
+  doc.text(student?.name || invoice.billed_to || "Customer", left, y);
 
   y += 32;
   doc.setDrawColor(200);
@@ -121,7 +121,7 @@ function downloadInvoicePdf(invoice, student, biz = {}) {
   doc.save(`${isPaid ? "Receipt" : "Invoice"}-${invoice.number}.pdf`);
 }
 
-export default function InvoicesTab({ invoices, students, studentMap, appointments, businessSettings, onAddManual, onGenerateMonthly, onMarkPaid, onMarkUnpaid, onRemove }) {
+export default function InvoicesTab({ invoices, students, studentMap, appointments, businessSettings, onAddManual, onGenerateMonthly, onGenerateCentreInvoice, onMarkPaid, onMarkUnpaid, onRemove }) {
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [form, setForm] = useState({
     studentId: students[0]?.id || "",
@@ -129,6 +129,7 @@ export default function InvoicesTab({ invoices, students, studentMap, appointmen
     items: [{ description: "", amount: "" }],
   });
   const [genForm, setGenForm] = useState({ studentId: students[0]?.id || "", period: todayISO().slice(0, 7) });
+  const [centreGenForm, setCentreGenForm] = useState({ centre: CENTRES[0], period: todayISO().slice(0, 7) });
 
   function updateItem(index, patch) {
     const items = form.items.map((it, i) => (i === index ? { ...it, ...patch } : it));
@@ -164,11 +165,16 @@ export default function InvoicesTab({ invoices, students, studentMap, appointmen
     onGenerateMonthly(genForm.studentId, genForm.period);
   }
 
+  function submitCentreGenerate(e) {
+    e.preventDefault();
+    onGenerateCentreInvoice(centreGenForm.centre, centreGenForm.period);
+  }
+
   const sorted = [...invoices]
     .filter((i) => {
       if (!invoiceSearch.trim()) return true;
       const q = invoiceSearch.trim().toLowerCase();
-      const studentName = studentMap[i.student_id]?.name || "";
+      const studentName = studentMap[i.student_id]?.name || i.billed_to || "";
       return studentName.toLowerCase().includes(q) || i.number.toLowerCase().includes(q);
     })
     .sort((a, b) => b.date.localeCompare(a.date));
@@ -183,6 +189,20 @@ export default function InvoicesTab({ invoices, students, studentMap, appointmen
     });
     return { count: eligible.length, byDuration };
   }, [appointments, genForm]);
+
+  const centrePreview = useMemo(() => {
+    const centreStudentIds = new Set(students.filter((s) => s.centre === centreGenForm.centre).map((s) => s.id));
+    const eligible = appointments.filter(
+      (a) => centreStudentIds.has(a.student_id) && a.status === "completed" && !a.invoiced && a.date.slice(0, 7) === centreGenForm.period
+    );
+    const byDuration = {};
+    const byStudentCount = {};
+    eligible.forEach((a) => {
+      byDuration[a.duration] = (byDuration[a.duration] || 0) + 1;
+      byStudentCount[a.student_id] = (byStudentCount[a.student_id] || 0) + 1;
+    });
+    return { count: eligible.length, byDuration, studentCount: Object.keys(byStudentCount).length };
+  }, [appointments, students, centreGenForm]);
 
   return (
     <div className="space-y-4">
@@ -214,6 +234,33 @@ export default function InvoicesTab({ invoices, students, studentMap, appointmen
             <Button type="submit">Generate invoice</Button>
           </form>
         )}
+      </SectionCard>
+
+      <SectionCard title="Bill a whole centre">
+        <p className="text-sm text-[#8A8272] mb-3">
+          One invoice covering every student tagged to a centre for the month — instead of billing them one by one.
+          Tag students with a centre on the Students tab first.
+        </p>
+        <form onSubmit={submitCentreGenerate} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Centre">
+              <select className={inputCls} value={centreGenForm.centre} onChange={(e) => setCentreGenForm({ ...centreGenForm, centre: e.target.value })}>
+                {CENTRES.map((c) => <option key={c}>{c}</option>)}
+              </select>
+            </Field>
+            <Field label="Month">
+              <input type="month" className={inputCls} value={centreGenForm.period} onChange={(e) => setCentreGenForm({ ...centreGenForm, period: e.target.value })} />
+            </Field>
+          </div>
+          {centrePreview.count === 0 ? (
+            <p className="text-sm text-[#8A8272]">No un-invoiced completed lessons for that centre in that month yet.</p>
+          ) : (
+            <div className="text-sm text-[#5C564A]">
+              Will invoice: {Object.entries(centrePreview.byDuration).map(([d, c]) => `${c} × ${d} min`).join(", ")} — across {centrePreview.studentCount} student(s)
+            </div>
+          )}
+          <Button type="submit">Generate centre invoice</Button>
+        </form>
       </SectionCard>
 
       <SectionCard title="Manual invoice">
@@ -280,7 +327,7 @@ export default function InvoicesTab({ invoices, students, studentMap, appointmen
               <div key={i.id} className="flex items-center justify-between py-2.5">
                 <div>
                   <div className="text-sm font-medium">
-                    <span style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{i.number}</span> — {studentMap[i.student_id]?.name || "Unknown"}
+                    <span style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{i.number}</span> — {studentMap[i.student_id]?.name || i.billed_to || "Unknown"}
                   </div>
                   <div className="text-xs text-[#8A8272]">
                     {i.lines

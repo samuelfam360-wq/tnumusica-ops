@@ -75,6 +75,25 @@ export default function IncomeTab({ appointments, invoices, studentMap, material
       .sort((a, b) => b.total - a.total);
   }, [appointments, studentMap]);
 
+  const byCentre = useMemo(() => {
+    const map = {};
+    appointments
+      .filter((a) => a.status === "completed")
+      .forEach((a) => {
+        const centre = studentMap[a.student_id]?.centre || "Uncategorized";
+        map[centre] = (map[centre] || 0) + (Number(a.rate) || 0);
+      });
+    invoices
+      .filter((i) => i.status === "paid")
+      .forEach((i) => {
+        const centre = i.billed_to || studentMap[i.student_id]?.centre || "Uncategorized";
+        map[centre] = (map[centre] || 0) + (Number(i.total) || 0);
+      });
+    return Object.entries(map)
+      .map(([name, total]) => ({ name, total }))
+      .sort((a, b) => b.total - a.total);
+  }, [appointments, invoices, studentMap]);
+
   return (
     <div className="space-y-4">
       <SectionCard title="Cash flow — money in vs. money out">
@@ -139,6 +158,27 @@ export default function IncomeTab({ appointments, invoices, studentMap, material
               ))}
             </tbody>
           </table>
+        )}
+      </SectionCard>
+
+      <SectionCard title="Income by centre">
+        {byCentre.length === 0 ? (
+          <p className="text-sm text-[#8A8272]">Nothing to show yet. Tag students with a centre on the Students tab.</p>
+        ) : (
+          <div className="space-y-2">
+            {byCentre.map((c) => {
+              const max = byCentre[0].total || 1;
+              return (
+                <div key={c.name} className="flex items-center gap-3">
+                  <span className="text-sm w-32 truncate">{c.name}</span>
+                  <div className="flex-1 bg-[#F3EEE2] rounded h-3 overflow-hidden">
+                    <div className="h-full bg-[#8A6D3B]" style={{ width: `${(c.total / max) * 100}%` }} />
+                  </div>
+                  <span style={{ fontFamily: "'IBM Plex Mono', monospace" }} className="text-sm w-24 text-right">{money(c.total)}</span>
+                </div>
+              );
+            })}
+          </div>
         )}
       </SectionCard>
 

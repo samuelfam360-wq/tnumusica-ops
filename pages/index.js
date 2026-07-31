@@ -203,6 +203,41 @@ export default function Home() {
       .in("id", eligible.map((e) => e.id));
     refetchAll();
   }
+
+  async function generateCentreInvoice(centre, period) {
+    const centreStudentIds = new Set(students.filter((s) => s.centre === centre).map((s) => s.id));
+    const eligible = appointments.filter(
+      (a) => centreStudentIds.has(a.student_id) && a.status === "completed" && !a.invoiced && a.date.slice(0, 7) === period
+    );
+    if (eligible.length === 0) return;
+
+    const byDuration = {};
+    eligible.forEach((a) => {
+      const d = a.duration;
+      if (!byDuration[d]) byDuration[d] = { duration: d, count: 0, subtotal: 0 };
+      byDuration[d].count += 1;
+      byDuration[d].subtotal += Number(a.rate) || 0;
+    });
+    const lines = Object.values(byDuration).sort((x, y) => x.duration - y.duration);
+    const total = lines.reduce((sum, l) => sum + l.subtotal, 0);
+
+    await supabase.from("invoices").insert({
+      number: nextInvoiceNumber(),
+      student_id: null,
+      billed_to: centre,
+      period,
+      lines,
+      total,
+      date: todayISO(),
+      status: "unpaid",
+      paid_date: null,
+    });
+    await supabase
+      .from("appointments")
+      .update({ invoiced: true })
+      .in("id", eligible.map((e) => e.id));
+    refetchAll();
+  }
   async function markInvoicePaid(id) {
     await supabase.from("invoices").update({ status: "paid", paid_date: todayISO() }).eq("id", id);
     refetchAll();
@@ -497,6 +532,7 @@ export default function Home() {
             businessSettings={businessSettings}
             onAddManual={addManualInvoice}
             onGenerateMonthly={generateMonthlyInvoice}
+            onGenerateCentreInvoice={generateCentreInvoice}
             onMarkPaid={markInvoicePaid}
             onMarkUnpaid={markInvoiceUnpaid}
             onRemove={removeInvoice}

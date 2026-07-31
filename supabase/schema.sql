@@ -32,6 +32,7 @@ create table if not exists students (
   age int,
   grade text default '',
   course text default '',
+  centre text default '',
   created_at timestamptz default now()
 );
 
@@ -66,6 +67,7 @@ create table if not exists invoices (
   id uuid primary key default gen_random_uuid(),
   number text not null,
   student_id uuid references students(id) on delete cascade,
+  billed_to text,
   description text,
   total numeric not null default 0,
   date date not null,

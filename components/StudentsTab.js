@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  SectionCard, Button, Field, inputCls, timeRange, SearchBox, LOCATIONS,
+  SectionCard, Button, Field, inputCls, timeRange, SearchBox, LOCATIONS, CENTRES,
   weekdayAbbrev, endTime, ClashWarning, StatusPill, money, todayISO,
 } from "./ui";
 
@@ -8,8 +8,9 @@ export default function StudentsTab({
   students, appointments = [], services = [], onAdd, onUpdate, onRemove,
   onSetAppointmentStatus, onUpdateAppointment, onReschedule, onRemoveAppointment,
 }) {
-  const [form, setForm] = useState({ name: "", rate: "", age: "", grade: "", course: "", notes: "" });
+  const [form, setForm] = useState({ name: "", rate: "", age: "", grade: "", course: "", centre: "", notes: "" });
   const [search, setSearch] = useState("");
+  const [centreFilter, setCentreFilter] = useState("");
   const [expanded, setExpanded] = useState(null);
   const [editingApptId, setEditingApptId] = useState(null);
   const [editApptForm, setEditApptForm] = useState(null);
@@ -25,9 +26,10 @@ export default function StudentsTab({
       age: form.age === "" ? null : Number(form.age),
       grade: form.grade.trim(),
       course: form.course.trim(),
+      centre: form.centre,
       notes: form.notes.trim(),
     });
-    setForm({ name: "", rate: "", age: "", grade: "", course: "", notes: "" });
+    setForm({ name: "", rate: "", age: "", grade: "", course: "", centre: "", notes: "" });
   }
 
   function scheduleFor(studentId) {
@@ -89,11 +91,13 @@ export default function StudentsTab({
     setReschedApptForm(null);
   }
 
-  const filtered = students.filter((s) => {
-    if (!search.trim()) return true;
-    const q = search.trim().toLowerCase();
-    return (s.name || "").toLowerCase().includes(q) || (s.grade || "").toLowerCase().includes(q) || (s.course || "").toLowerCase().includes(q);
-  });
+  const filtered = students
+    .filter((s) => !centreFilter || s.centre === centreFilter)
+    .filter((s) => {
+      if (!search.trim()) return true;
+      const q = search.trim().toLowerCase();
+      return (s.name || "").toLowerCase().includes(q) || (s.grade || "").toLowerCase().includes(q) || (s.course || "").toLowerCase().includes(q);
+    });
 
   return (
     <div className="space-y-4">
@@ -111,6 +115,12 @@ export default function StudentsTab({
           <Field label="Course">
             <input className={inputCls} placeholder="Classical" value={form.course} onChange={(e) => setForm({ ...form, course: e.target.value })} />
           </Field>
+          <Field label="Centre">
+            <select className={inputCls} value={form.centre} onChange={(e) => setForm({ ...form, centre: e.target.value })}>
+              <option value="">—</option>
+              {CENTRES.map((c) => <option key={c}>{c}</option>)}
+            </select>
+          </Field>
           <Field label="Default rate (RM/lesson)">
             <input type="number" className={inputCls} value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value })} />
           </Field>
@@ -125,7 +135,15 @@ export default function StudentsTab({
 
       <SectionCard
         title={`Students (${students.length})`}
-        action={<SearchBox value={search} onChange={setSearch} placeholder="Search by name, grade, course…" />}
+        action={
+          <div className="flex items-center gap-2">
+            <select className={inputCls} value={centreFilter} onChange={(e) => setCentreFilter(e.target.value)}>
+              <option value="">All centres</option>
+              {CENTRES.map((c) => <option key={c}>{c}</option>)}
+            </select>
+            <SearchBox value={search} onChange={setSearch} placeholder="Search by name, grade, course…" />
+          </div>
+        }
       >
         {filtered.length === 0 ? (
           <p className="text-sm text-[#8A8272]">No students match.</p>
@@ -144,6 +162,7 @@ export default function StudentsTab({
                         {s.age != null && <span className="text-[#8A8272] font-normal"> · {s.age}yo</span>}
                         {s.grade && <span className="text-[#8A8272] font-normal"> · {s.grade}</span>}
                         {s.course && <span className="text-[#8A8272] font-normal"> · {s.course}</span>}
+                        {s.centre && <span className="text-[#8A8272] font-normal"> · {s.centre}</span>}
                       </div>
                       {s.notes && <div className="text-xs text-[#8A8272]">{s.notes}</div>}
                     </div>
@@ -155,7 +174,7 @@ export default function StudentsTab({
 
                   {isOpen && (
                     <div className="mt-3 pl-1 space-y-4">
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                         <Field label="Name">
                           <input className={inputCls} value={s.name} onChange={(e) => onUpdate(s.id, { name: e.target.value })} />
                         </Field>
@@ -167,6 +186,12 @@ export default function StudentsTab({
                         </Field>
                         <Field label="Course">
                           <input className={inputCls} value={s.course || ""} onChange={(e) => onUpdate(s.id, { course: e.target.value })} />
+                        </Field>
+                        <Field label="Centre">
+                          <select className={inputCls} value={s.centre || ""} onChange={(e) => onUpdate(s.id, { centre: e.target.value })}>
+                            <option value="">—</option>
+                            {CENTRES.map((c) => <option key={c}>{c}</option>)}
+                          </select>
                         </Field>
                         <Field label="Rate (RM)">
                           <input type="number" className={inputCls} value={s.rate} onChange={(e) => onUpdate(s.id, { rate: Number(e.target.value) || 0 })} />
