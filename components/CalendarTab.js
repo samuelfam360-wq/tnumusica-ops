@@ -372,15 +372,16 @@ export default function CalendarTab({ appointments, students, studentMap, servic
       <SectionCard
         title="Bulk edit a student's upcoming lessons"
         action={
-          <button onClick={() => setBulkOpen(!bulkOpen)} className="text-xs text-[#1C1B1A] hover:underline">
-            {bulkOpen ? "Close" : "Open"}
+          <button onClick={() => setBulkOpen(true)} className="text-xs text-[#1C1B1A] hover:underline">
+            Open
           </button>
         }
       >
-        {!bulkOpen ? (
-          <p className="text-sm text-[#8A8272]">Fix a wrong time/duration/rate across a student's whole upcoming schedule in one go — useful when something was keyed in wrong for every week.</p>
-        ) : (
-          <form onSubmit={submitBulk} className="space-y-3">
+        <p className="text-sm text-[#8A8272]">Fix a wrong time/duration/rate across a student's whole upcoming schedule in one go — useful when something was keyed in wrong for every week.</p>
+      </SectionCard>
+
+      <Modal open={bulkOpen} onClose={() => setBulkOpen(false)} title="Bulk edit a student's upcoming lessons">
+        <form onSubmit={submitBulk} className="space-y-3">
             <Field label="Student">
               <SearchableSelect
                 options={students.map((s) => ({ value: s.id, label: s.name }))}
@@ -439,9 +440,8 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                 <Button type="submit">Apply to selected lessons</Button>
               </>
             )}
-          </form>
-        )}
-      </SectionCard>
+        </form>
+      </Modal>
 
       <SectionCard
         title={monthLabel}
