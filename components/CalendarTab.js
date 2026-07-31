@@ -14,6 +14,9 @@ function newId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+const WEEKDAY_NAME_TO_INDEX = { Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6 };
+const WEEKDAY_FULL_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
 const blankForm = (students) => ({
   studentId: students[0]?.id || "",
   date: todayISO(),
@@ -36,7 +39,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkStudentId, setBulkStudentId] = useState(students[0]?.id || "");
   const [bulkSelected, setBulkSelected] = useState({});
-  const [bulkPatch, setBulkPatch] = useState({ time: "", duration: "", location: "", rate: "", shiftDays: "" });
+  const [bulkPatch, setBulkPatch] = useState({ time: "", duration: "", location: "", rate: "", shiftDays: "", shiftToWeekday: "" });
   const [unavailReason, setUnavailReason] = useState("");
   const [unavailType, setUnavailType] = useState("personal");
 
@@ -107,7 +110,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
     setDayModalOpen(false);
     setBulkOpen(true);
     setBulkStudentId(studentId);
-    setBulkPatch({ time: "", duration: "", location: "", rate: "", shiftDays: "" });
+    setBulkPatch({ time: "", duration: "", location: "", rate: "", shiftDays: "", shiftToWeekday: "" });
   }
   function toggleBulkAll(checked) {
     const next = {};
@@ -124,11 +127,19 @@ export default function CalendarTab({ appointments, students, studentMap, servic
     if (bulkPatch.location) sharedPatch.location = bulkPatch.location;
     if (bulkPatch.rate) sharedPatch.rate = Number(bulkPatch.rate);
     const shift = bulkPatch.shiftDays !== "" ? Number(bulkPatch.shiftDays) : 0;
-    if (Object.keys(sharedPatch).length === 0 && shift === 0) return;
-    const updates = selectedAppointments.map((a) => ({
-      id: a.id,
-      patch: shift !== 0 ? { ...sharedPatch, date: addDays(a.date, shift) } : sharedPatch,
-    }));
+    const targetWeekday = bulkPatch.shiftToWeekday ? WEEKDAY_NAME_TO_INDEX[bulkPatch.shiftToWeekday] : null;
+    if (Object.keys(sharedPatch).length === 0 && shift === 0 && targetWeekday === null) return;
+    const updates = selectedAppointments.map((a) => {
+      let newDate = a.date;
+      if (targetWeekday !== null) {
+        const currentDay = new Date(a.date + "T00:00:00").getDay();
+        const diff = (targetWeekday - currentDay + 7) % 7;
+        newDate = addDays(a.date, diff);
+      } else if (shift !== 0) {
+        newDate = addDays(a.date, shift);
+      }
+      return { id: a.id, patch: newDate !== a.date ? { ...sharedPatch, date: newDate } : sharedPatch };
+    });
     onBulkUpdate(updates);
     setBulkOpen(false);
   }
@@ -415,14 +426,21 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                   ))}
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                  <Field label="Shift date by (days, blank = keep)">
+                <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
+                  <Field label="Move to weekday (blank = keep)">
+                    <select className={inputCls} value={bulkPatch.shiftToWeekday} disabled={!!bulkPatch.shiftDays} onChange={(e) => setBulkPatch({ ...bulkPatch, shiftToWeekday: e.target.value, shiftDays: "" })}>
+                      <option value="">— keep —</option>
+                      {WEEKDAY_FULL_NAMES.map((d) => <option key={d}>{d}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Or shift by (days, blank = keep)">
                     <input
                       type="number"
                       className={inputCls}
                       placeholder="e.g. 7 or -1"
                       value={bulkPatch.shiftDays}
-                      onChange={(e) => setBulkPatch({ ...bulkPatch, shiftDays: e.target.value })}
+                      disabled={!!bulkPatch.shiftToWeekday}
+                      onChange={(e) => setBulkPatch({ ...bulkPatch, shiftDays: e.target.value, shiftToWeekday: "" })}
                     />
                   </Field>
                   <Field label="New time (blank = keep)">
@@ -442,7 +460,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                   </Field>
                 </div>
                 <p className="text-xs text-[#8A8272]">
-                  Shifting by days moves each selected lesson's own date by that many days (e.g. 7 = one week later, -1 = one day earlier) — every lesson keeps its own original date as the starting point.
+                  "Move to weekday" shifts each lesson forward to the next occurrence of that day (e.g. Saturday → Sunday moves it 1 day later). "Shift by days" moves by an exact number instead (7 = one week later, -1 = one day earlier). Use one or the other.
                 </p>
                 <Button type="submit">Apply to selected lessons</Button>
               </>
