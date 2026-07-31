@@ -183,6 +183,7 @@ grant select, insert, update, delete on business_settings to authenticated;
 create table if not exists unavailable_dates (
   date date primary key,
   reason text default '',
+  reason_type text default 'personal',
   created_at timestamptz default now()
 );
 

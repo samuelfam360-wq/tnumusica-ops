@@ -38,6 +38,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
   const [bulkSelected, setBulkSelected] = useState({});
   const [bulkPatch, setBulkPatch] = useState({ time: "", duration: "", location: "", rate: "", shiftDays: "" });
   const [unavailReason, setUnavailReason] = useState("");
+  const [unavailType, setUnavailType] = useState("personal");
 
   const [viewMonth, setViewMonth] = useState(() => {
     const t = new Date();
@@ -80,6 +81,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
 
   useEffect(() => {
     setUnavailReason(selectedUnavail?.reason || "");
+    setUnavailType("personal");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
 
@@ -259,7 +261,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
 
   const needsReschedule = useMemo(() => {
     return appointments
-      .filter((a) => a.status === "scheduled" && unavailMap[a.date])
+      .filter((a) => a.status === "scheduled" && unavailMap[a.date] && unavailMap[a.date].reason_type !== "holiday")
       .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
   }, [appointments, unavailMap]);
 
@@ -473,7 +475,9 @@ export default function CalendarTab({ appointments, students, studentMap, servic
             const count = countsByDate[iso] || 0;
             const isToday = iso === todayISO();
             const isSelected = iso === selectedDate;
-            const isUnavailable = !!unavailMap[iso];
+            const dayUnavail = unavailMap[iso];
+            const isUnavailable = !!dayUnavail;
+            const isHoliday = dayUnavail?.reason_type === "holiday";
             return (
               <button
                 key={i}
@@ -482,6 +486,8 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                   "aspect-square rounded-md flex flex-col items-center justify-center text-sm relative transition-colors",
                   isSelected
                     ? "bg-[#1C1B1A] text-[#FAF7F0]"
+                    : isHoliday
+                    ? "bg-[#F5EDDD] border border-[#8A6D3B] text-[#8A6D3B]"
                     : isUnavailable
                     ? "bg-[#F6EBEE] border border-[#6B2C3E] text-[#6B2C3E]"
                     : isToday
@@ -490,13 +496,14 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                 ].join(" ")}
               >
                 <span>{d.getDate()}</span>
-                {count > 0 && <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full" style={{ background: isUnavailable ? "#6B2C3E" : "#B8935F" }} />}
+                {count > 0 && <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full" style={{ background: isHoliday ? "#8A6D3B" : isUnavailable ? "#6B2C3E" : "#B8935F" }} />}
               </button>
             );
           })}
         </div>
         <div className="flex items-center gap-4 mt-2 text-[11px] text-[#8A8272]">
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded border border-[#6B2C3E] bg-[#F6EBEE] inline-block" /> Unavailable</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded border border-[#8A6D3B] bg-[#F5EDDD] inline-block" /> Holiday</span>
           <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#B8935F] inline-block" /> Has lessons</span>
         </div>
       </SectionCard>
@@ -508,25 +515,44 @@ export default function CalendarTab({ appointments, students, studentMap, servic
       >
         <div className="mb-4 pb-4 border-b border-[#EDE7DB]">
           {selectedUnavail ? (
-            <div className="flex items-center justify-between bg-[#F6EBEE] border border-[#6B2C3E] rounded-md px-3 py-2">
-              <div className="text-sm text-[#6B2C3E]">
-                <span className="font-medium">Marked unavailable</span>
-                {selectedUnavail.reason && ` — ${selectedUnavail.reason}`}
+            selectedUnavail.reason_type === "holiday" ? (
+              <div className="flex items-center justify-between bg-[#F5EDDD] border border-[#8A6D3B] rounded-md px-3 py-2">
+                <div className="text-sm text-[#8A6D3B]">
+                  <span className="font-medium">Centre / public holiday</span>
+                  {selectedUnavail.reason && ` — ${selectedUnavail.reason}`}
+                  <span className="text-xs block text-[#8A8272]">No lessons — nothing needs rescheduling.</span>
+                </div>
+                <button onClick={() => onUnmarkUnavailable(selectedDate)} className="text-xs text-[#8A6D3B] hover:underline">Remove</button>
               </div>
-              <button onClick={() => onUnmarkUnavailable(selectedDate)} className="text-xs text-[#6B2C3E] hover:underline">Remove</button>
-            </div>
+            ) : (
+              <div className="flex items-center justify-between bg-[#F6EBEE] border border-[#6B2C3E] rounded-md px-3 py-2">
+                <div className="text-sm text-[#6B2C3E]">
+                  <span className="font-medium">Marked unavailable</span>
+                  {selectedUnavail.reason && ` — ${selectedUnavail.reason}`}
+                </div>
+                <button onClick={() => onUnmarkUnavailable(selectedDate)} className="text-xs text-[#6B2C3E] hover:underline">Remove</button>
+              </div>
+            )
           ) : (
-            <div className="flex items-center gap-2">
-              <input
-                className={inputCls + " flex-1"}
-                placeholder="Reason (optional) — e.g. Out of town"
-                value={unavailReason}
-                onChange={(e) => setUnavailReason(e.target.value)}
-              />
-              <Button variant="secondary" onClick={() => onMarkUnavailable(selectedDate, unavailReason)}>Mark this day unavailable</Button>
+            <div className="space-y-2">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <select className={inputCls} value={unavailType} onChange={(e) => setUnavailType(e.target.value)}>
+                  <option value="personal">I'm not available (lessons need rescheduling)</option>
+                  <option value="holiday">Centre / public holiday (no reschedule needed)</option>
+                </select>
+                <input
+                  className={inputCls + " flex-1"}
+                  placeholder="Reason (optional) — e.g. Out of town, CNY"
+                  value={unavailReason}
+                  onChange={(e) => setUnavailReason(e.target.value)}
+                />
+              </div>
+              <Button variant="secondary" onClick={() => onMarkUnavailable(selectedDate, unavailReason, unavailType)}>
+                {unavailType === "holiday" ? "Mark as holiday" : "Mark this day unavailable"}
+              </Button>
             </div>
           )}
-          {selectedUnavail && scheduleForSelected.filter((a) => a.status === "scheduled").length > 0 && (
+          {selectedUnavail && selectedUnavail.reason_type !== "holiday" && scheduleForSelected.filter((a) => a.status === "scheduled").length > 0 && (
             <div className="mt-2 text-sm text-[#6B2C3E] font-medium">
               ⚠ {scheduleForSelected.filter((a) => a.status === "scheduled").length} lesson(s) below still need to be rescheduled.
             </div>

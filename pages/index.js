@@ -329,8 +329,16 @@ export default function Home() {
     refetchAll();
   }
 
-  async function markUnavailable(date, reason) {
-    await supabase.from("unavailable_dates").upsert({ date, reason: reason || "" });
+  async function markUnavailable(date, reason, reasonType) {
+    await supabase.from("unavailable_dates").upsert({ date, reason: reason || "", reason_type: reasonType || "personal" });
+    if (reasonType === "holiday") {
+      // Centre/public holiday — these lessons simply don't happen, so cancel
+      // them outright instead of leaving them flagged as needing a reschedule.
+      const affected = appointments.filter((a) => a.date === date && a.status === "scheduled").map((a) => a.id);
+      if (affected.length > 0) {
+        await supabase.from("appointments").update({ status: "cancelled" }).in("id", affected);
+      }
+    }
     refetchAll();
   }
   async function unmarkUnavailable(date) {
