@@ -107,16 +107,36 @@ export default function Home() {
     if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
     return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
+  // Counts how many weekly occurrences (starting on startDateStr) fit within
+  // the given number of real calendar months — more accurate than a flat
+  // "4 weeks per month" guess, since months actually hold 4 or 5 occurrences
+  // of any given weekday.
+  function countWeeklyOccurrences(startDateStr, months) {
+    const start = new Date(startDateStr + "T00:00:00");
+    const end = new Date(start);
+    end.setMonth(end.getMonth() + Number(months));
+    let count = 0;
+    const cursor = new Date(start);
+    while (cursor < end) {
+      count++;
+      cursor.setDate(cursor.getDate() + 7);
+    }
+    return Math.max(1, count);
+  }
+  function resolveWeekCount(startDateStr, value, unit) {
+    const n = Number(value) || 1;
+    return unit === "months" ? countWeeklyOccurrences(startDateStr, n) : Math.max(1, n);
+  }
 
   async function addStudent(payload) {
-    const { _scheduleNow, _weeksToSchedule, _serviceId, _serviceCode, ...studentRow } = payload;
+    const { _scheduleNow, _scheduleValue, _scheduleUnit, _serviceId, _serviceCode, ...studentRow } = payload;
     const { data: newStudent, error } = await supabase.from("students").insert(studentRow).select().single();
     if (!error && newStudent && _scheduleNow) {
       const startDate = nextDateForWeekday(newStudent.lesson_day);
       if (startDate) {
         const location = LOCATIONS.includes(newStudent.centre) ? newStudent.centre : LOCATIONS[0];
-        const seriesId = _weeksToSchedule > 1 ? newSeriesId() : null;
-        const weeks = Math.max(1, Number(_weeksToSchedule) || 12);
+        const weeks = resolveWeekCount(startDate, _scheduleValue, _scheduleUnit);
+        const seriesId = weeks > 1 ? newSeriesId() : null;
         const rows = Array.from({ length: weeks }, (_, i) => ({
           student_id: newStudent.id,
           date: addDays(startDate, i * 7),
@@ -137,7 +157,7 @@ export default function Home() {
     refetchAll();
   }
 
-  async function extendStudentSchedule(studentId, weeksToAdd) {
+  async function extendStudentSchedule(studentId, value, unit) {
     const student = students.find((s) => s.id === studentId);
     if (!student || !student.lesson_day || !student.lesson_time) return;
 
@@ -152,7 +172,7 @@ export default function Home() {
     if (!startDate) return;
 
     const location = LOCATIONS.includes(student.centre) ? student.centre : LOCATIONS[0];
-    const weeks = Math.max(1, Number(weeksToAdd) || 12);
+    const weeks = resolveWeekCount(startDate, value, unit);
     const seriesId = weeks > 1 ? newSeriesId() : null;
     const rows = Array.from({ length: weeks }, (_, i) => ({
       student_id: student.id,

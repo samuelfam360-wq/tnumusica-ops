@@ -15,7 +15,7 @@ export default function StudentsTab({
   const [planForm, setPlanForm] = useState({});
   const [form, setForm] = useState({
     name: "", rate: "", age: "", gradeChoice: "", gradeOther: "", courseChoice: "", courseOther: "", centre: "",
-    lessonDay: "", lessonTime: "", lessonDuration: "", lessonServiceId: "", weeksToSchedule: "12",
+    lessonDay: "", lessonTime: "", lessonDuration: "", lessonServiceId: "", scheduleValue: "3", scheduleUnit: "months",
     notes: "",
   });
   const [selectedIds, setSelectedIds] = useState({});
@@ -61,13 +61,14 @@ export default function StudentsTab({
       notes: form.notes.trim(),
       // Generation-only — used once to create the recurring lessons, not stored on the student row.
       _scheduleNow: !!(form.lessonDay && form.lessonTime),
-      _weeksToSchedule: Number(form.weeksToSchedule) || 12,
+      _scheduleValue: form.scheduleValue,
+      _scheduleUnit: form.scheduleUnit,
       _serviceId: svc ? svc.id : null,
       _serviceCode: svc ? svc.code : null,
     });
     setForm({
       name: "", rate: "", age: "", gradeChoice: "", gradeOther: "", courseChoice: "", courseOther: "", centre: "",
-      lessonDay: "", lessonTime: "", lessonDuration: "", lessonServiceId: "", weeksToSchedule: "12",
+      lessonDay: "", lessonTime: "", lessonDuration: "", lessonServiceId: "", scheduleValue: "3", scheduleUnit: "months",
       notes: "",
     });
   }
@@ -219,8 +220,14 @@ export default function StudentsTab({
               <Field label="Duration (min)">
                 <input type="number" className={inputCls} placeholder="30" value={form.lessonDuration} onChange={(e) => setForm({ ...form, lessonDuration: e.target.value, lessonServiceId: "" })} />
               </Field>
-              <Field label="Schedule for how many weeks">
-                <input type="number" min="1" max="52" className={inputCls} value={form.weeksToSchedule} onChange={(e) => setForm({ ...form, weeksToSchedule: e.target.value })} />
+              <Field label="For how long">
+                <div className="flex gap-1">
+                  <input type="number" min="1" className={inputCls + " w-16"} value={form.scheduleValue} onChange={(e) => setForm({ ...form, scheduleValue: e.target.value })} />
+                  <select className={inputCls} value={form.scheduleUnit} onChange={(e) => setForm({ ...form, scheduleUnit: e.target.value })}>
+                    <option value="weeks">Weeks</option>
+                    <option value="months">Months</option>
+                  </select>
+                </div>
               </Field>
             </div>
             {form.lessonDay && form.lessonTime && (
@@ -424,19 +431,28 @@ export default function StudentsTab({
                           <div className="text-xs text-[#5C564A]">
                             Extend recurring {s.lesson_day} {s.lesson_time} lessons further — continues right after their last scheduled one, no gaps or duplicates.
                           </div>
-                          <Field label="Add how many more weeks">
-                            <input
-                              type="number"
-                              min="1"
-                              max="52"
-                              className={inputCls + " w-24"}
-                              value={extendWeeks[s.id] ?? "12"}
-                              onChange={(e) => setExtendWeeks({ ...extendWeeks, [s.id]: e.target.value })}
-                            />
+                          <Field label="Add how much more">
+                            <div className="flex gap-1">
+                              <input
+                                type="number"
+                                min="1"
+                                className={inputCls + " w-16"}
+                                value={extendWeeks[s.id]?.value ?? "3"}
+                                onChange={(e) => setExtendWeeks({ ...extendWeeks, [s.id]: { ...extendWeeks[s.id], value: e.target.value } })}
+                              />
+                              <select
+                                className={inputCls}
+                                value={extendWeeks[s.id]?.unit ?? "months"}
+                                onChange={(e) => setExtendWeeks({ ...extendWeeks, [s.id]: { ...extendWeeks[s.id], unit: e.target.value } })}
+                              >
+                                <option value="weeks">Weeks</option>
+                                <option value="months">Months</option>
+                              </select>
+                            </div>
                           </Field>
                           <Button
                             variant="secondary"
-                            onClick={() => onExtendSchedule(s.id, Number(extendWeeks[s.id] ?? 12) || 12)}
+                            onClick={() => onExtendSchedule(s.id, extendWeeks[s.id]?.value ?? "3", extendWeeks[s.id]?.unit ?? "months")}
                           >
                             Generate more lessons
                           </Button>
