@@ -472,9 +472,9 @@ export default function StudentsTab({
                           return items.length === 0 ? (
                             <p className="text-xs text-[#8A8272]">Nothing planned yet — add the first item below.</p>
                           ) : (
-                            <div className="space-y-1.5">
+                            <div className="space-y-2">
                               {items.map((p) => (
-                                <div key={p.id} className="border border-[#EDE7DB] rounded-md px-2.5 py-2 space-y-1.5">
+                                <div key={p.id} className="border border-[#EDE7DB] rounded-md px-3 py-2.5 space-y-2">
                                   <div className="flex flex-wrap items-center gap-2">
                                     <input
                                       type="date"
@@ -496,24 +496,34 @@ export default function StudentsTab({
                                     </button>
                                     <button onClick={() => onRemoveLessonPlanItem(p.id)} className="text-xs text-[#8A8272] hover:underline">Remove</button>
                                   </div>
-                                  <DeferredInput
-                                    className={inputCls + " w-full" + (p.status === "taught" ? " line-through text-[#8A8272]" : "")}
-                                    value={p.topic}
-                                    onCommit={(v) => onUpdateLessonPlanItem(p.id, { topic: v })}
-                                  />
-                                  <DeferredInput
-                                    className={inputCls + " w-full text-xs"}
-                                    placeholder="Remarks (optional)"
-                                    value={p.remarks || ""}
-                                    onCommit={(v) => onUpdateLessonPlanItem(p.id, { remarks: v })}
-                                  />
+                                  <Field label="What to teach">
+                                    <DeferredInput
+                                      multiline
+                                      rows={3}
+                                      maxLength={1000}
+                                      className={inputCls + " w-full resize-y" + (p.status === "taught" ? " line-through text-[#8A8272]" : "")}
+                                      value={p.topic}
+                                      onCommit={(v) => onUpdateLessonPlanItem(p.id, { topic: v })}
+                                    />
+                                  </Field>
+                                  <Field label="Remarks">
+                                    <DeferredInput
+                                      multiline
+                                      rows={2}
+                                      maxLength={1000}
+                                      className={inputCls + " w-full resize-y"}
+                                      placeholder="Optional"
+                                      value={p.remarks || ""}
+                                      onCommit={(v) => onUpdateLessonPlanItem(p.id, { remarks: v })}
+                                    />
+                                  </Field>
                                 </div>
                               ))}
                             </div>
                           );
                         })()}
                         <form
-                          className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-end"
+                          className="border border-[#B8935F] rounded-md p-3 space-y-2"
                           onSubmit={(e) => {
                             e.preventDefault();
                             const topic = (planForm[s.id]?.topic || "").trim();
@@ -527,30 +537,40 @@ export default function StudentsTab({
                             setPlanForm({ ...planForm, [s.id]: { topic: "", remarks: "", lessonDate: "", lessonTime: "" } });
                           }}
                         >
-                          <input
-                            type="date"
-                            className={inputCls}
-                            value={planForm[s.id]?.lessonDate || ""}
-                            onChange={(e) => setPlanForm({ ...planForm, [s.id]: { ...planForm[s.id], lessonDate: e.target.value } })}
-                          />
-                          <input
-                            type="time"
-                            className={inputCls}
-                            value={planForm[s.id]?.lessonTime || ""}
-                            onChange={(e) => setPlanForm({ ...planForm, [s.id]: { ...planForm[s.id], lessonTime: e.target.value } })}
-                          />
-                          <input
-                            className={inputCls}
-                            placeholder="e.g. C major scale, hands together"
-                            value={planForm[s.id]?.topic || ""}
-                            onChange={(e) => setPlanForm({ ...planForm, [s.id]: { ...planForm[s.id], topic: e.target.value } })}
-                          />
-                          <input
-                            className={inputCls}
-                            placeholder="Remarks (optional)"
-                            value={planForm[s.id]?.remarks || ""}
-                            onChange={(e) => setPlanForm({ ...planForm, [s.id]: { ...planForm[s.id], remarks: e.target.value } })}
-                          />
+                          <div className="flex flex-wrap gap-2">
+                            <input
+                              type="date"
+                              className={inputCls + " w-40"}
+                              value={planForm[s.id]?.lessonDate || ""}
+                              onChange={(e) => setPlanForm({ ...planForm, [s.id]: { ...planForm[s.id], lessonDate: e.target.value } })}
+                            />
+                            <input
+                              type="time"
+                              className={inputCls + " w-28"}
+                              value={planForm[s.id]?.lessonTime || ""}
+                              onChange={(e) => setPlanForm({ ...planForm, [s.id]: { ...planForm[s.id], lessonTime: e.target.value } })}
+                            />
+                          </div>
+                          <Field label="What to teach">
+                            <textarea
+                              rows={3}
+                              maxLength={1000}
+                              className={inputCls + " w-full resize-y"}
+                              placeholder="e.g. C major scale, hands together, review last week's piece"
+                              value={planForm[s.id]?.topic || ""}
+                              onChange={(e) => setPlanForm({ ...planForm, [s.id]: { ...planForm[s.id], topic: e.target.value } })}
+                            />
+                          </Field>
+                          <Field label="Remarks">
+                            <textarea
+                              rows={2}
+                              maxLength={1000}
+                              className={inputCls + " w-full resize-y"}
+                              placeholder="Optional"
+                              value={planForm[s.id]?.remarks || ""}
+                              onChange={(e) => setPlanForm({ ...planForm, [s.id]: { ...planForm[s.id], remarks: e.target.value } })}
+                            />
+                          </Field>
                           <Button type="submit">Add</Button>
                         </form>
                       </div>

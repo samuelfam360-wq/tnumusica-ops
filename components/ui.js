@@ -5,21 +5,36 @@ import { useState, useEffect } from "react";
 // instead of on every keystroke. Without this, typing in a field wired
 // straight to onUpdate() triggers a full save-and-refetch per character,
 // which is what makes typing feel slow as the data grows.
-export function DeferredInput({ value, onCommit, type = "text", className, placeholder }) {
+export function DeferredInput({ value, onCommit, type = "text", className, placeholder, multiline, rows, maxLength }) {
   const [local, setLocal] = useState(value ?? "");
   useEffect(() => {
     setLocal(value ?? "");
   }, [value]);
+  const commit = () => {
+    if (local !== (value ?? "")) onCommit(local);
+  };
+  if (multiline) {
+    return (
+      <textarea
+        className={className}
+        placeholder={placeholder}
+        rows={rows || 3}
+        maxLength={maxLength}
+        value={local}
+        onChange={(e) => setLocal(e.target.value)}
+        onBlur={commit}
+      />
+    );
+  }
   return (
     <input
       type={type}
       className={className}
       placeholder={placeholder}
+      maxLength={maxLength}
       value={local}
       onChange={(e) => setLocal(e.target.value)}
-      onBlur={() => {
-        if (local !== (value ?? "")) onCommit(local);
-      }}
+      onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === "Enter") e.currentTarget.blur();
       }}
