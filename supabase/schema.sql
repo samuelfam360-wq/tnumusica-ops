@@ -218,3 +218,23 @@ create policy "allowed users full access" on expenses
   with check (exists (select 1 from allowed_users au where au.email = auth.email()));
 
 grant select, insert, update, delete on expenses to authenticated;
+
+-- ---------- Teaching plan (curriculum planning, separate from the calendar) ----------
+create table if not exists lesson_plan_items (
+  id uuid primary key default gen_random_uuid(),
+  student_id uuid references students(id) on delete cascade,
+  position int not null default 0,
+  topic text not null,
+  remarks text default '',
+  status text not null default 'planned',
+  created_at timestamptz default now()
+);
+
+alter table lesson_plan_items enable row level security;
+
+create policy "allowed users full access" on lesson_plan_items
+  for all
+  using (exists (select 1 from allowed_users au where au.email = auth.email()))
+  with check (exists (select 1 from allowed_users au where au.email = auth.email()));
+
+grant select, insert, update, delete on lesson_plan_items to authenticated;

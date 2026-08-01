@@ -26,6 +26,7 @@ export default function Home() {
   const [businessSettings, setBusinessSettings] = useState(null);
   const [unavailableDates, setUnavailableDates] = useState([]);
   const [expenses, setExpenses] = useState([]);
+  const [lessonPlans, setLessonPlans] = useState([]);
   const [dataLoaded, setDataLoaded] = useState(false);
 
   useEffect(() => {
@@ -47,7 +48,7 @@ export default function Home() {
   }, [session]);
 
   async function refetchAll() {
-    const [s, a, inv, svc, mat, matSales, biz, unavail, exp] = await Promise.all([
+    const [s, a, inv, svc, mat, matSales, biz, unavail, exp, plans] = await Promise.all([
       supabase.from("students").select("*").order("name"),
       supabase.from("appointments").select("*").order("date").order("time"),
       supabase.from("invoices").select("*").order("date", { ascending: false }),
@@ -57,6 +58,7 @@ export default function Home() {
       supabase.from("business_settings").select("*").eq("id", "main").maybeSingle(),
       supabase.from("unavailable_dates").select("*"),
       supabase.from("expenses").select("*").order("date", { ascending: false }),
+      supabase.from("lesson_plan_items").select("*").order("position"),
     ]);
     setStudents(s.data || []);
     setAppointments(a.data || []);
@@ -71,6 +73,7 @@ export default function Home() {
     });
     setUnavailableDates(unavail.data || []);
     setExpenses(exp.data || []);
+    setLessonPlans(plans.data || []);
     setDataLoaded(true);
   }
 
@@ -352,6 +355,36 @@ export default function Home() {
   }
   async function removeMaterialSale(id) {
     await supabase.from("material_sales").delete().eq("id", id);
+    refetchAll();
+  }
+
+  // ---- Teaching plan (curriculum planning) ----
+  async function addLessonPlanItem(studentId, { topic, remarks }) {
+    const existing = lessonPlans.filter((p) => p.student_id === studentId);
+    const nextPosition = existing.length > 0 ? Math.max(...existing.map((p) => p.position)) + 1 : 0;
+    await supabase.from("lesson_plan_items").insert({
+      student_id: studentId, position: nextPosition, topic, remarks: remarks || "", status: "planned",
+    });
+    refetchAll();
+  }
+  async function updateLessonPlanItem(id, patch) {
+    await supabase.from("lesson_plan_items").update(patch).eq("id", id);
+    refetchAll();
+  }
+  async function removeLessonPlanItem(id) {
+    await supabase.from("lesson_plan_items").delete().eq("id", id);
+    refetchAll();
+  }
+  async function moveLessonPlanItem(studentId, id, direction) {
+    const items = lessonPlans.filter((p) => p.student_id === studentId).sort((a, b) => a.position - b.position);
+    const idx = items.findIndex((p) => p.id === id);
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (idx === -1 || swapIdx < 0 || swapIdx >= items.length) return;
+    const a = items[idx], b = items[swapIdx];
+    await Promise.all([
+      supabase.from("lesson_plan_items").update({ position: b.position }).eq("id", a.id),
+      supabase.from("lesson_plan_items").update({ position: a.position }).eq("id", b.id),
+    ]);
     refetchAll();
   }
 
@@ -694,6 +727,11 @@ export default function Home() {
             onBulkRemoveStudents={bulkRemoveStudents}
             onBulkUpdateStudents={bulkUpdateStudents}
             onExtendSchedule={extendStudentSchedule}
+            lessonPlans={lessonPlans}
+            onAddLessonPlanItem={addLessonPlanItem}
+            onUpdateLessonPlanItem={updateLessonPlanItem}
+            onRemoveLessonPlanItem={removeLessonPlanItem}
+            onMoveLessonPlanItem={moveLessonPlanItem}
             onSetAppointmentStatus={setAppointmentStatus}
             onUpdateAppointment={updateAppointment}
             onReschedule={rescheduleAppointment}

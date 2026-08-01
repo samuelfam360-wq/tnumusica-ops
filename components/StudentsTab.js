@@ -7,10 +7,12 @@ import {
 export default function StudentsTab({
   students, appointments = [], services = [], onAdd, onUpdate, onRemove,
   onBulkRemoveStudents, onBulkUpdateStudents, onExtendSchedule,
+  lessonPlans = [], onAddLessonPlanItem, onUpdateLessonPlanItem, onRemoveLessonPlanItem, onMoveLessonPlanItem,
   onSetAppointmentStatus, onUpdateAppointment, onReschedule, onRemoveAppointment,
 }) {
   const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
   const [extendWeeks, setExtendWeeks] = useState({});
+  const [planForm, setPlanForm] = useState({});
   const [form, setForm] = useState({
     name: "", rate: "", age: "", gradeChoice: "", gradeOther: "", courseChoice: "", courseOther: "", centre: "",
     lessonDay: "", lessonTime: "", lessonDuration: "", lessonServiceId: "", weeksToSchedule: "12",
@@ -440,6 +442,76 @@ export default function StudentsTab({
                           </Button>
                         </div>
                       )}
+
+                      <div className="border border-[#EDE7DB] rounded-md p-3 space-y-2">
+                        <div className="text-xs uppercase tracking-wide text-[#8A8272]">
+                          Teaching plan — what to cover, planned ahead, independent of the calendar
+                        </div>
+                        {(() => {
+                          const items = lessonPlans.filter((p) => p.student_id === s.id).sort((a, b) => a.position - b.position);
+                          return items.length === 0 ? (
+                            <p className="text-xs text-[#8A8272]">Nothing planned yet — add the first item below.</p>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {items.map((p, idx) => (
+                                <div key={p.id} className="flex items-start gap-2 border border-[#EDE7DB] rounded-md px-2.5 py-2">
+                                  <span className="text-xs text-[#8A8272] w-5 pt-1.5" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{idx + 1}.</span>
+                                  <div className="flex-1 space-y-1">
+                                    <DeferredInput
+                                      className={inputCls + (p.status === "taught" ? " line-through text-[#8A8272]" : "")}
+                                      value={p.topic}
+                                      onCommit={(v) => onUpdateLessonPlanItem(p.id, { topic: v })}
+                                    />
+                                    <DeferredInput
+                                      className={inputCls + " text-xs"}
+                                      placeholder="Remarks (optional)"
+                                      value={p.remarks || ""}
+                                      onCommit={(v) => onUpdateLessonPlanItem(p.id, { remarks: v })}
+                                    />
+                                  </div>
+                                  <div className="flex flex-col items-end gap-1">
+                                    <button
+                                      onClick={() => onUpdateLessonPlanItem(p.id, { status: p.status === "taught" ? "planned" : "taught" })}
+                                      className={"text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap " + (p.status === "taught" ? "text-[#4C5A43] bg-[#E7EDE1]" : "text-[#8A8272] bg-[#F3EEE2]")}
+                                    >
+                                      {p.status === "taught" ? "Taught" : "Planned"}
+                                    </button>
+                                    <div className="flex gap-1">
+                                      <button onClick={() => onMoveLessonPlanItem(s.id, p.id, "up")} disabled={idx === 0} className="text-xs text-[#1C1B1A] hover:underline disabled:opacity-30">↑</button>
+                                      <button onClick={() => onMoveLessonPlanItem(s.id, p.id, "down")} disabled={idx === items.length - 1} className="text-xs text-[#1C1B1A] hover:underline disabled:opacity-30">↓</button>
+                                      <button onClick={() => onRemoveLessonPlanItem(p.id)} className="text-xs text-[#8A8272] hover:underline">×</button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                        <form
+                          className="flex gap-2"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            const topic = (planForm[s.id]?.topic || "").trim();
+                            if (!topic) return;
+                            onAddLessonPlanItem(s.id, { topic, remarks: (planForm[s.id]?.remarks || "").trim() });
+                            setPlanForm({ ...planForm, [s.id]: { topic: "", remarks: "" } });
+                          }}
+                        >
+                          <input
+                            className={inputCls + " flex-1"}
+                            placeholder="e.g. C major scale, hands together"
+                            value={planForm[s.id]?.topic || ""}
+                            onChange={(e) => setPlanForm({ ...planForm, [s.id]: { ...planForm[s.id], topic: e.target.value } })}
+                          />
+                          <input
+                            className={inputCls + " flex-1"}
+                            placeholder="Remarks (optional)"
+                            value={planForm[s.id]?.remarks || ""}
+                            onChange={(e) => setPlanForm({ ...planForm, [s.id]: { ...planForm[s.id], remarks: e.target.value } })}
+                          />
+                          <Button type="submit">Add</Button>
+                        </form>
+                      </div>
 
                       <div className="flex items-center justify-between">
                         <div className="text-xs uppercase tracking-wide text-[#8A8272]">Lessons ({schedule.length})</div>
