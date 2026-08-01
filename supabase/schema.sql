@@ -224,6 +224,8 @@ create table if not exists lesson_plan_items (
   id uuid primary key default gen_random_uuid(),
   student_id uuid references students(id) on delete cascade,
   position int not null default 0,
+  lesson_date date,
+  lesson_time text,
   topic text not null,
   remarks text default '',
   status text not null default 'planned',

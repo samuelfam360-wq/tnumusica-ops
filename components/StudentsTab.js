@@ -445,66 +445,92 @@ export default function StudentsTab({
 
                       <div className="border border-[#EDE7DB] rounded-md p-3 space-y-2">
                         <div className="text-xs uppercase tracking-wide text-[#8A8272]">
-                          Teaching plan — what to cover, planned ahead, independent of the calendar
+                          Teaching plan — what to cover on each lesson date, planned ahead, independent of whether that lesson is on the calendar yet
                         </div>
                         {(() => {
-                          const items = lessonPlans.filter((p) => p.student_id === s.id).sort((a, b) => a.position - b.position);
+                          const items = lessonPlans.filter((p) => p.student_id === s.id).sort((a, b) => {
+                            const aKey = `${a.lesson_date || "9999-99-99"} ${a.lesson_time || "99:99"}`;
+                            const bKey = `${b.lesson_date || "9999-99-99"} ${b.lesson_time || "99:99"}`;
+                            return aKey === bKey ? a.position - b.position : aKey.localeCompare(bKey);
+                          });
                           return items.length === 0 ? (
                             <p className="text-xs text-[#8A8272]">Nothing planned yet — add the first item below.</p>
                           ) : (
                             <div className="space-y-1.5">
-                              {items.map((p, idx) => (
-                                <div key={p.id} className="flex items-start gap-2 border border-[#EDE7DB] rounded-md px-2.5 py-2">
-                                  <span className="text-xs text-[#8A8272] w-5 pt-1.5" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{idx + 1}.</span>
-                                  <div className="flex-1 space-y-1">
-                                    <DeferredInput
-                                      className={inputCls + (p.status === "taught" ? " line-through text-[#8A8272]" : "")}
-                                      value={p.topic}
-                                      onCommit={(v) => onUpdateLessonPlanItem(p.id, { topic: v })}
+                              {items.map((p) => (
+                                <div key={p.id} className="border border-[#EDE7DB] rounded-md px-2.5 py-2 space-y-1.5">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <input
+                                      type="date"
+                                      className={inputCls + " w-40"}
+                                      value={p.lesson_date || ""}
+                                      onChange={(e) => onUpdateLessonPlanItem(p.id, { lesson_date: e.target.value || null })}
                                     />
-                                    <DeferredInput
-                                      className={inputCls + " text-xs"}
-                                      placeholder="Remarks (optional)"
-                                      value={p.remarks || ""}
-                                      onCommit={(v) => onUpdateLessonPlanItem(p.id, { remarks: v })}
+                                    <input
+                                      type="time"
+                                      className={inputCls + " w-28"}
+                                      value={p.lesson_time || ""}
+                                      onChange={(e) => onUpdateLessonPlanItem(p.id, { lesson_time: e.target.value || null })}
                                     />
-                                  </div>
-                                  <div className="flex flex-col items-end gap-1">
                                     <button
                                       onClick={() => onUpdateLessonPlanItem(p.id, { status: p.status === "taught" ? "planned" : "taught" })}
-                                      className={"text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap " + (p.status === "taught" ? "text-[#4C5A43] bg-[#E7EDE1]" : "text-[#8A8272] bg-[#F3EEE2]")}
+                                      className={"text-[11px] px-2 py-0.5 rounded-full whitespace-nowrap ml-auto " + (p.status === "taught" ? "text-[#4C5A43] bg-[#E7EDE1]" : "text-[#8A8272] bg-[#F3EEE2]")}
                                     >
                                       {p.status === "taught" ? "Taught" : "Planned"}
                                     </button>
-                                    <div className="flex gap-1">
-                                      <button onClick={() => onMoveLessonPlanItem(s.id, p.id, "up")} disabled={idx === 0} className="text-xs text-[#1C1B1A] hover:underline disabled:opacity-30">↑</button>
-                                      <button onClick={() => onMoveLessonPlanItem(s.id, p.id, "down")} disabled={idx === items.length - 1} className="text-xs text-[#1C1B1A] hover:underline disabled:opacity-30">↓</button>
-                                      <button onClick={() => onRemoveLessonPlanItem(p.id)} className="text-xs text-[#8A8272] hover:underline">×</button>
-                                    </div>
+                                    <button onClick={() => onRemoveLessonPlanItem(p.id)} className="text-xs text-[#8A8272] hover:underline">Remove</button>
                                   </div>
+                                  <DeferredInput
+                                    className={inputCls + " w-full" + (p.status === "taught" ? " line-through text-[#8A8272]" : "")}
+                                    value={p.topic}
+                                    onCommit={(v) => onUpdateLessonPlanItem(p.id, { topic: v })}
+                                  />
+                                  <DeferredInput
+                                    className={inputCls + " w-full text-xs"}
+                                    placeholder="Remarks (optional)"
+                                    value={p.remarks || ""}
+                                    onCommit={(v) => onUpdateLessonPlanItem(p.id, { remarks: v })}
+                                  />
                                 </div>
                               ))}
                             </div>
                           );
                         })()}
                         <form
-                          className="flex gap-2"
+                          className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-end"
                           onSubmit={(e) => {
                             e.preventDefault();
                             const topic = (planForm[s.id]?.topic || "").trim();
                             if (!topic) return;
-                            onAddLessonPlanItem(s.id, { topic, remarks: (planForm[s.id]?.remarks || "").trim() });
-                            setPlanForm({ ...planForm, [s.id]: { topic: "", remarks: "" } });
+                            onAddLessonPlanItem(s.id, {
+                              topic,
+                              remarks: (planForm[s.id]?.remarks || "").trim(),
+                              lessonDate: planForm[s.id]?.lessonDate || "",
+                              lessonTime: planForm[s.id]?.lessonTime || "",
+                            });
+                            setPlanForm({ ...planForm, [s.id]: { topic: "", remarks: "", lessonDate: "", lessonTime: "" } });
                           }}
                         >
                           <input
-                            className={inputCls + " flex-1"}
+                            type="date"
+                            className={inputCls}
+                            value={planForm[s.id]?.lessonDate || ""}
+                            onChange={(e) => setPlanForm({ ...planForm, [s.id]: { ...planForm[s.id], lessonDate: e.target.value } })}
+                          />
+                          <input
+                            type="time"
+                            className={inputCls}
+                            value={planForm[s.id]?.lessonTime || ""}
+                            onChange={(e) => setPlanForm({ ...planForm, [s.id]: { ...planForm[s.id], lessonTime: e.target.value } })}
+                          />
+                          <input
+                            className={inputCls}
                             placeholder="e.g. C major scale, hands together"
                             value={planForm[s.id]?.topic || ""}
                             onChange={(e) => setPlanForm({ ...planForm, [s.id]: { ...planForm[s.id], topic: e.target.value } })}
                           />
                           <input
-                            className={inputCls + " flex-1"}
+                            className={inputCls}
                             placeholder="Remarks (optional)"
                             value={planForm[s.id]?.remarks || ""}
                             onChange={(e) => setPlanForm({ ...planForm, [s.id]: { ...planForm[s.id], remarks: e.target.value } })}
