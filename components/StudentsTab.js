@@ -465,8 +465,8 @@ export default function StudentsTab({
                         </div>
                         {(() => {
                           const items = lessonPlans.filter((p) => p.student_id === s.id).sort((a, b) => {
-                            const aKey = `${a.lesson_date || "9999-99-99"} ${a.lesson_time || "99:99"}`;
-                            const bKey = `${b.lesson_date || "9999-99-99"} ${b.lesson_time || "99:99"}`;
+                            const aKey = a.lesson_date || "9999-99-99";
+                            const bKey = b.lesson_date || "9999-99-99";
                             return aKey === bKey ? a.position - b.position : aKey.localeCompare(bKey);
                           });
                           return items.length === 0 ? (
@@ -481,12 +481,6 @@ export default function StudentsTab({
                                       className={inputCls + " w-40"}
                                       value={p.lesson_date || ""}
                                       onChange={(e) => onUpdateLessonPlanItem(p.id, { lesson_date: e.target.value || null })}
-                                    />
-                                    <input
-                                      type="time"
-                                      className={inputCls + " w-28"}
-                                      value={p.lesson_time || ""}
-                                      onChange={(e) => onUpdateLessonPlanItem(p.id, { lesson_time: e.target.value || null })}
                                     />
                                     <button
                                       onClick={() => onUpdateLessonPlanItem(p.id, { status: p.status === "taught" ? "planned" : "taught" })}
@@ -532,9 +526,8 @@ export default function StudentsTab({
                               topic,
                               remarks: (planForm[s.id]?.remarks || "").trim(),
                               lessonDate: planForm[s.id]?.lessonDate || "",
-                              lessonTime: planForm[s.id]?.lessonTime || "",
                             });
-                            setPlanForm({ ...planForm, [s.id]: { topic: "", remarks: "", lessonDate: "", lessonTime: "" } });
+                            setPlanForm({ ...planForm, [s.id]: { topic: "", remarks: "", lessonDate: "" } });
                           }}
                         >
                           <div className="flex flex-wrap gap-2">
@@ -543,12 +536,6 @@ export default function StudentsTab({
                               className={inputCls + " w-40"}
                               value={planForm[s.id]?.lessonDate || ""}
                               onChange={(e) => setPlanForm({ ...planForm, [s.id]: { ...planForm[s.id], lessonDate: e.target.value } })}
-                            />
-                            <input
-                              type="time"
-                              className={inputCls + " w-28"}
-                              value={planForm[s.id]?.lessonTime || ""}
-                              onChange={(e) => setPlanForm({ ...planForm, [s.id]: { ...planForm[s.id], lessonTime: e.target.value } })}
                             />
                           </div>
                           <Field label="What to teach">

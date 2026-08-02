@@ -379,12 +379,12 @@ export default function Home() {
   }
 
   // ---- Teaching plan (curriculum planning) ----
-  async function addLessonPlanItem(studentId, { topic, remarks, lessonDate, lessonTime }) {
+  async function addLessonPlanItem(studentId, { topic, remarks, lessonDate }) {
     const existing = lessonPlans.filter((p) => p.student_id === studentId);
     const nextPosition = existing.length > 0 ? Math.max(...existing.map((p) => p.position)) + 1 : 0;
     const { error } = await supabase.from("lesson_plan_items").insert({
       student_id: studentId, position: nextPosition, topic, remarks: remarks || "", status: "planned",
-      lesson_date: lessonDate || null, lesson_time: lessonTime || null,
+      lesson_date: lessonDate || null,
     });
     if (error) {
       alert(`Couldn't save that plan item: ${error.message}\n\nThis usually means the lesson_plan_items table or its permissions haven't been set up in Supabase yet.`);
