@@ -726,6 +726,8 @@ export default function Home() {
             studentMap={studentMap}
             services={services}
             unavailableDates={unavailableDates}
+            lessonPlans={lessonPlans}
+            onUpdateLessonPlanItem={updateLessonPlanItem}
             onMarkUnavailable={markUnavailable}
             onUnmarkUnavailable={unmarkUnavailable}
             onAdd={addAppointment}

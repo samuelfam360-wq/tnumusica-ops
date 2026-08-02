@@ -666,11 +666,14 @@ export default function StudentsTab({
                                 </div>
                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                                   <StatusPill status={a.status} />
-                                  {a.status !== "completed" && a.status !== "rescheduled" && (
+                                  {a.status !== "completed" && a.status !== "rescheduled" && a.status !== "absent" && (
                                     <button onClick={() => onSetAppointmentStatus(a.id, "completed")} className="text-xs text-[#7A8B6F] hover:underline">Mark done</button>
                                   )}
-                                  {a.status === "completed" && (
+                                  {(a.status === "completed" || a.status === "absent") && (
                                     <button onClick={() => onSetAppointmentStatus(a.id, "scheduled")} className="text-xs text-[#8A8272] hover:underline">Undo</button>
+                                  )}
+                                  {a.status === "scheduled" && (
+                                    <button onClick={() => onSetAppointmentStatus(a.id, "absent")} className="text-xs text-[#B8563D] hover:underline">Absent</button>
                                   )}
                                   {a.status !== "cancelled" && a.status !== "completed" && a.status !== "rescheduled" && (
                                     <>

@@ -191,7 +191,7 @@ export function findClashes(appointments, date, time, duration, excludeId) {
   return appointments.filter((a) => {
     if (a.id === excludeId) return false;
     if (a.date !== date) return false;
-    if (a.status === "cancelled" || a.status === "rescheduled") return false;
+    if (a.status === "cancelled" || a.status === "rescheduled" || a.status === "absent") return false;
     const aStart = toMinutes(a.time);
     const aEnd = aStart + (Number(a.duration) || 0);
     return aStart < end && start < aEnd;
@@ -324,6 +324,7 @@ export function StatusPill({ status }) {
     completed: ["Completed", "#4C5A43", "#E7EDE1"],
     cancelled: ["Cancelled", "#6B2C3E", "#F6EBEE"],
     rescheduled: ["Rescheduled", "#8A6D3B", "#F5EDDD"],
+    absent: ["Absent", "#B8563D", "#F7E9E2"],
   };
   const [label, color, bg] = map[status] || map.scheduled;
   return (

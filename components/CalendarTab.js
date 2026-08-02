@@ -29,7 +29,7 @@ const blankForm = (students) => ({
   notes: "",
 });
 
-export default function CalendarTab({ appointments, students, studentMap, services, unavailableDates, onMarkUnavailable, onUnmarkUnavailable, onAdd, onUpdate, onUpdateSeries, onBulkUpdate, onReschedule, onSetStatus, onRemove }) {
+export default function CalendarTab({ appointments, students, studentMap, services, unavailableDates, lessonPlans = [], onUpdateLessonPlanItem, onMarkUnavailable, onUnmarkUnavailable, onAdd, onUpdate, onUpdateSeries, onBulkUpdate, onReschedule, onSetStatus, onRemove }) {
   const [form, setForm] = useState(() => blankForm(students));
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState(null);
@@ -272,7 +272,10 @@ export default function CalendarTab({ appointments, students, studentMap, servic
 
   const needsReschedule = useMemo(() => {
     return appointments
-      .filter((a) => a.status === "scheduled" && unavailMap[a.date] && unavailMap[a.date].reason_type !== "holiday")
+      .filter((a) =>
+        a.status === "absent" ||
+        (a.status === "scheduled" && unavailMap[a.date] && unavailMap[a.date].reason_type !== "holiday")
+      )
       .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
   }, [appointments, unavailMap]);
 
@@ -298,6 +301,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                       <div>
                         <span className="font-medium">{studentMap[a.student_id]?.name}</span>
                         <span className="text-[#8A8272]"> · {timeRange(a.time, a.duration)}</span>
+                        {a.status === "absent" && <span className="text-[#B8563D]"> · Absent</span>}
                       </div>
                       <button
                         onClick={() => { setSelectedDate(a.date); setDayModalOpen(true); startReschedule(a); }}
@@ -570,11 +574,16 @@ export default function CalendarTab({ appointments, students, studentMap, servic
               </Button>
             </div>
           )}
-          {selectedUnavail && selectedUnavail.reason_type !== "holiday" && scheduleForSelected.filter((a) => a.status === "scheduled").length > 0 && (
-            <div className="mt-2 text-sm text-[#6B2C3E] font-medium">
-              ⚠ {scheduleForSelected.filter((a) => a.status === "scheduled").length} lesson(s) below still need to be rescheduled.
-            </div>
-          )}
+          {(() => {
+            const pending = scheduleForSelected.filter(
+              (a) => a.status === "absent" || (a.status === "scheduled" && selectedUnavail && selectedUnavail.reason_type !== "holiday")
+            );
+            return pending.length > 0 && (
+              <div className="mt-2 text-sm text-[#6B2C3E] font-medium">
+                ⚠ {pending.length} lesson(s) below still need to be rescheduled.
+              </div>
+            );
+          })()}
         </div>
         {scheduleForSelected.length === 0 ? (
           <p className="text-sm text-[#8A8272]">Nothing scheduled this day.</p>
@@ -697,15 +706,32 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                       {a.rescheduled_from && (
                         <div className="text-xs text-[#8A6D3B]">Rescheduled from an earlier lesson</div>
                       )}
+                      {lessonPlans.filter((p) => p.student_id === a.student_id && p.lesson_date === a.date).map((p) => (
+                        <div key={p.id} className="mt-1.5 border-l-2 border-[#B8935F] pl-2 py-0.5">
+                          <div className={"text-xs " + (p.status === "taught" ? "line-through text-[#8A8272]" : "text-[#1C1B1A]")}>
+                            {p.topic}
+                          </div>
+                          {p.remarks && <div className="text-xs text-[#8A8272]">{p.remarks}</div>}
+                          <button
+                            onClick={() => onUpdateLessonPlanItem(p.id, { status: p.status === "taught" ? "planned" : "taught" })}
+                            className="text-[11px] text-[#8A6D3B] hover:underline"
+                          >
+                            {p.status === "taught" ? "Mark not taught" : "Mark taught"}
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <StatusPill status={a.status} />
-                    {a.status !== "completed" && a.status !== "rescheduled" && (
+                    {a.status !== "completed" && a.status !== "rescheduled" && a.status !== "absent" && (
                       <button onClick={() => onSetStatus(a.id, "completed")} className="text-xs text-[#7A8B6F] hover:underline">Mark done</button>
                     )}
-                    {a.status === "completed" && (
+                    {(a.status === "completed" || a.status === "absent") && (
                       <button onClick={() => onSetStatus(a.id, "scheduled")} className="text-xs text-[#8A8272] hover:underline">Undo</button>
+                    )}
+                    {a.status === "scheduled" && (
+                      <button onClick={() => onSetStatus(a.id, "absent")} className="text-xs text-[#B8563D] hover:underline">Absent</button>
                     )}
                     {a.status !== "cancelled" && a.status !== "completed" && a.status !== "rescheduled" && (
                       <>
