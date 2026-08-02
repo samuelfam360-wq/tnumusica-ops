@@ -527,7 +527,7 @@ export default function StudentsTab({
                           onSubmit={(e) => {
                             e.preventDefault();
                             const topic = (planForm[s.id]?.topic || "").trim();
-                            if (!topic) return;
+                            if (!topic) { alert('Please fill in "What to teach" before adding.'); return; }
                             onAddLessonPlanItem(s.id, {
                               topic,
                               remarks: (planForm[s.id]?.remarks || "").trim(),
