@@ -10,7 +10,7 @@ import MaterialsTab from "../components/MaterialsTab";
 import SettingsTab from "../components/SettingsTab";
 import ExpensesTab from "../components/ExpensesTab";
 import AICommandBar from "../components/AICommandBar";
-import { KeyNav, StatCard, PianoMark, money, todayISO, addDays, toISODate, LOCATIONS } from "../components/ui";
+import { KeyNav, StatCard, money, todayISO, addDays, toISODate, LOCATIONS } from "../components/ui";
 
 export default function Home() {
   const [session, setSession] = useState(undefined); // undefined = loading, null = signed out
@@ -679,11 +679,7 @@ export default function Home() {
       <header className="border-b border-[#1C1B1A] bg-[#FAF7F0] sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-5 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <PianoMark />
-            <div>
-              <div className="text-xl leading-none" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600 }}>T'numusica</div>
-              <div className="text-[11px] tracking-wide text-[#8A8272] uppercase mt-0.5">Operations</div>
-            </div>
+            <img src="/logo.png" alt="T'numusica" className="h-11 w-auto" />
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-[#8A8272]">{session.user.email}</span>

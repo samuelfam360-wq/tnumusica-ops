@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { Button, PianoMark, inputCls } from "./ui";
+import { Button, inputCls } from "./ui";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
@@ -25,13 +25,7 @@ export default function Auth() {
     <div className="min-h-screen flex items-center justify-center bg-[#FAF7F0] px-4">
       <div className="max-w-sm w-full bg-white border border-[#E7E0D2] rounded-lg p-6">
         <div className="flex items-center gap-2 mb-6">
-          <PianoMark />
-          <div>
-            <div className="text-xl leading-none" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600 }}>
-              T'numusica
-            </div>
-            <div className="text-[11px] tracking-wide text-[#8A8272] uppercase mt-0.5">Operations</div>
-          </div>
+          <img src="/logo.png" alt="T'numusica" className="h-12 w-auto" />
         </div>
 
         {sent ? (
