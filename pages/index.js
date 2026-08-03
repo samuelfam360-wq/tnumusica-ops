@@ -679,7 +679,7 @@ export default function Home() {
       <header className="border-b border-[#1C1B1A] bg-[#FAF7F0] sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-5 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="T'numusica" className="h-11 w-auto" />
+            <img src={businessSettings?.logo_base64 || "/logo.png"} alt={businessSettings?.company_name || "T'numusica"} className="h-11 w-auto" />
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-[#8A8272]">{session.user.email}</span>
