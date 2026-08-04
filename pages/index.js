@@ -267,6 +267,13 @@ export default function Home() {
     );
     refetchAll();
   }
+  async function markAbsent(appointment, reason) {
+    await supabase
+      .from("appointments")
+      .update({ status: "absent", notes: reason ? `${appointment.notes ? appointment.notes + " — " : ""}${reason}` : appointment.notes })
+      .eq("id", appointment.id);
+    refetchAll();
+  }
   async function removeAppointment(id) {
     await supabase.from("appointments").delete().eq("id", id);
     refetchAll();
@@ -739,6 +746,7 @@ export default function Home() {
             onUpdateSeries={updateAppointmentSeries}
             onBulkUpdate={bulkUpdateAppointments}
             onReschedule={rescheduleAppointment}
+            onMarkAbsent={markAbsent}
             onSetStatus={setAppointmentStatus}
             onRemove={removeAppointment}
           />
@@ -762,6 +770,7 @@ export default function Home() {
             onSetAppointmentStatus={setAppointmentStatus}
             onUpdateAppointment={updateAppointment}
             onReschedule={rescheduleAppointment}
+            onMarkAbsent={markAbsent}
             onRemoveAppointment={removeAppointment}
           />
         )}

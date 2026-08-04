@@ -8,11 +8,13 @@ export default function StudentsTab({
   students, appointments = [], services = [], onAdd, onUpdate, onRemove,
   onBulkRemoveStudents, onBulkUpdateStudents, onExtendSchedule,
   lessonPlans = [], onAddLessonPlanItem, onUpdateLessonPlanItem, onRemoveLessonPlanItem, onMoveLessonPlanItem,
-  onSetAppointmentStatus, onUpdateAppointment, onReschedule, onRemoveAppointment,
+  onSetAppointmentStatus, onUpdateAppointment, onReschedule, onMarkAbsent, onRemoveAppointment,
 }) {
   const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
   const [extendWeeks, setExtendWeeks] = useState({});
   const [planForm, setPlanForm] = useState({});
+  const [absentId, setAbsentId] = useState(null);
+  const [absentReason, setAbsentReason] = useState("");
   const [form, setForm] = useState({
     name: "", rate: "", age: "", gradeChoice: "", gradeOther: "", courseChoice: "", courseOther: "", centre: "",
     lessonDay: "", lessonTime: "", lessonDuration: "", lessonServiceId: "", scheduleValue: "3", scheduleUnit: "months",
@@ -613,6 +615,29 @@ export default function StudentsTab({
                                 </form>
                               );
                             }
+                            if (absentId === a.id) {
+                              return (
+                                <form
+                                  key={a.id}
+                                  onSubmit={(e) => {
+                                    e.preventDefault();
+                                    onMarkAbsent(a, absentReason.trim());
+                                    setAbsentId(null);
+                                    setAbsentReason("");
+                                  }}
+                                  className="border border-[#B8563D] rounded-md p-3 space-y-2"
+                                >
+                                  <div className="text-sm font-medium">Mark this lesson absent</div>
+                                  <Field label="Reason (optional)">
+                                    <input className={inputCls} placeholder="e.g. Sick, family emergency" value={absentReason} onChange={(e) => setAbsentReason(e.target.value)} autoFocus />
+                                  </Field>
+                                  <div className="flex gap-2">
+                                    <Button type="submit">Confirm absent</Button>
+                                    <Button type="button" variant="secondary" onClick={() => { setAbsentId(null); setAbsentReason(""); }}>Cancel</Button>
+                                  </div>
+                                </form>
+                              );
+                            }
                             if (reschedApptId === a.id) {
                               return (
                                 <form key={a.id} onSubmit={(e) => saveReschedule(e, a)} className="border border-[#8A6D3B] rounded-md p-3 space-y-2">
@@ -660,7 +685,7 @@ export default function StudentsTab({
                                     <button onClick={() => onSetAppointmentStatus(a.id, "scheduled")} className="text-xs text-[#8A8272] hover:underline">Undo</button>
                                   )}
                                   {a.status === "scheduled" && (
-                                    <button onClick={() => onSetAppointmentStatus(a.id, "absent")} className="text-xs text-[#B8563D] hover:underline">Absent</button>
+                                    <button onClick={() => { setAbsentId(a.id); setAbsentReason(""); }} className="text-xs text-[#B8563D] hover:underline">Absent</button>
                                   )}
                                   {a.status !== "cancelled" && a.status !== "completed" && a.status !== "rescheduled" && (
                                     <>

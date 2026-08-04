@@ -29,13 +29,15 @@ const blankForm = (students) => ({
   notes: "",
 });
 
-export default function CalendarTab({ appointments, students, studentMap, services, unavailableDates, lessonPlans = [], onUpdateLessonPlanItem, onMarkUnavailable, onUnmarkUnavailable, onAdd, onUpdate, onUpdateSeries, onBulkUpdate, onReschedule, onSetStatus, onRemove }) {
+export default function CalendarTab({ appointments, students, studentMap, services, unavailableDates, lessonPlans = [], onUpdateLessonPlanItem, onMarkUnavailable, onUnmarkUnavailable, onAdd, onUpdate, onUpdateSeries, onBulkUpdate, onReschedule, onMarkAbsent, onSetStatus, onRemove }) {
   const [form, setForm] = useState(() => blankForm(students));
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState(null);
   const [applyToSeries, setApplyToSeries] = useState(false);
   const [reschedulingId, setReschedulingId] = useState(null);
   const [reschedForm, setReschedForm] = useState(null);
+  const [absentId, setAbsentId] = useState(null);
+  const [absentReason, setAbsentReason] = useState("");
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkStudentId, setBulkStudentId] = useState(students[0]?.id || "");
   const [bulkSelected, setBulkSelected] = useState({});
@@ -301,7 +303,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                       <div>
                         <span className="font-medium">{studentMap[a.student_id]?.name}</span>
                         <span className="text-[#8A8272]"> · {timeRange(a.time, a.duration)}</span>
-                        {a.status === "absent" && <span className="text-[#B8563D]"> · Absent</span>}
+                        {a.status === "absent" && <span className="text-[#B8563D]"> · Absent{a.notes ? ` (${a.notes})` : ""}</span>}
                       </div>
                       <button
                         onClick={() => { setSelectedDate(a.date); setDayModalOpen(true); startReschedule(a); }}
@@ -648,6 +650,29 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                   </form>
                 );
               }
+              if (absentId === a.id) {
+                return (
+                  <form
+                    key={a.id}
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      onMarkAbsent(a, absentReason.trim());
+                      setAbsentId(null);
+                      setAbsentReason("");
+                    }}
+                    className="border border-[#B8563D] rounded-md p-3 space-y-2"
+                  >
+                    <div className="text-sm font-medium">Mark {studentMap[a.student_id]?.name}'s lesson absent</div>
+                    <Field label="Reason (optional)">
+                      <input className={inputCls} placeholder="e.g. Sick, family emergency" value={absentReason} onChange={(e) => setAbsentReason(e.target.value)} autoFocus />
+                    </Field>
+                    <div className="flex gap-2">
+                      <Button type="submit">Confirm absent</Button>
+                      <Button type="button" variant="secondary" onClick={() => { setAbsentId(null); setAbsentReason(""); }}>Cancel</Button>
+                    </div>
+                  </form>
+                );
+              }
               if (reschedulingId === a.id) {
                 return (
                   <form key={a.id} onSubmit={(e) => saveReschedule(e, a)} className="border border-[#8A6D3B] rounded-md p-3 space-y-3">
@@ -731,7 +756,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                       <button onClick={() => onSetStatus(a.id, "scheduled")} className="text-xs text-[#8A8272] hover:underline">Undo</button>
                     )}
                     {a.status === "scheduled" && (
-                      <button onClick={() => onSetStatus(a.id, "absent")} className="text-xs text-[#B8563D] hover:underline">Absent</button>
+                      <button onClick={() => { setAbsentId(a.id); setAbsentReason(""); }} className="text-xs text-[#B8563D] hover:underline">Absent</button>
                     )}
                     {a.status !== "cancelled" && a.status !== "completed" && a.status !== "rescheduled" && (
                       <>
