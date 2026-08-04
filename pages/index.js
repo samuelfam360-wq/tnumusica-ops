@@ -9,6 +9,7 @@ import InvoicesTab from "../components/InvoicesTab";
 import MaterialsTab from "../components/MaterialsTab";
 import SettingsTab from "../components/SettingsTab";
 import ExpensesTab from "../components/ExpensesTab";
+import ReportsTab from "../components/ReportsTab";
 import AICommandBar from "../components/AICommandBar";
 import { KeyNav, StatCard, money, todayISO, addDays, toISODate, LOCATIONS } from "../components/ui";
 
@@ -724,6 +725,7 @@ export default function Home() {
             { id: "income", label: "Income" },
             { id: "invoices", label: "Invoices" },
             { id: "expenses", label: "Expenses" },
+            { id: "reports", label: "Reports" },
             { id: "settings", label: "Settings" },
           ]}
           active={tab}
@@ -809,6 +811,18 @@ export default function Home() {
         )}
         {tab === "expenses" && (
           <ExpensesTab expenses={expenses} onAdd={addExpense} onUpdate={updateExpense} onRemove={removeExpense} />
+        )}
+        {tab === "reports" && (
+          <ReportsTab
+            students={students}
+            appointments={appointments}
+            invoices={invoices}
+            materials={materials}
+            materialSales={materialSales}
+            expenses={expenses}
+            businessSettings={businessSettings}
+            studentMap={studentMap}
+          />
         )}
         {tab === "settings" && (
           <SettingsTab settings={businessSettings} onSave={saveBusinessSettings} />
