@@ -11,7 +11,7 @@ import SettingsTab from "../components/SettingsTab";
 import ExpensesTab from "../components/ExpensesTab";
 import ReportsTab from "../components/ReportsTab";
 import AICommandBar from "../components/AICommandBar";
-import { KeyNav, StatCard, money, todayISO, addDays, toISODate, LOCATIONS } from "../components/ui";
+import { KeyNav, StatCard, money, todayISO, addDays, toISODate, LOCATIONS, computeLessonRate } from "../components/ui";
 
 export default function Home() {
   const [session, setSession] = useState(undefined); // undefined = loading, null = signed out
@@ -144,7 +144,7 @@ export default function Home() {
           time: newStudent.lesson_time,
           duration: newStudent.lesson_duration || 30,
           location,
-          rate: newStudent.rate,
+          rate: computeLessonRate(newStudent, newStudent.lesson_duration || 30),
           service_id: _serviceId,
           service_code: _serviceCode,
           status: "scheduled",
@@ -181,7 +181,7 @@ export default function Home() {
       time: student.lesson_time,
       duration: student.lesson_duration || 30,
       location,
-      rate: student.rate,
+      rate: computeLessonRate(student, student.lesson_duration || 30),
       status: "scheduled",
       invoiced: false,
       series_id: seriesId,
@@ -289,20 +289,28 @@ export default function Home() {
     refetchAll();
   }
   async function generateMonthlyInvoice(studentId, period) {
+    const student = students.find((s) => s.id === studentId);
     const eligible = appointments.filter(
       (a) => a.student_id === studentId && a.status === "completed" && !a.invoiced && a.date.slice(0, 7) === period
     );
     if (eligible.length === 0) return;
 
-    const byDuration = {};
-    eligible.forEach((a) => {
-      const d = a.duration;
-      if (!byDuration[d]) byDuration[d] = { duration: d, count: 0, subtotal: 0 };
-      byDuration[d].count += 1;
-      byDuration[d].subtotal += Number(a.rate) || 0;
-    });
-    const lines = Object.values(byDuration).sort((x, y) => x.duration - y.duration);
-    const total = lines.reduce((sum, l) => sum + l.subtotal, 0);
+    let lines, total;
+    if (student?.rate_type === "month") {
+      const flatRate = Number(student.rate) || 0;
+      lines = [{ description: `Monthly tuition — ${period}`, amount: flatRate }];
+      total = flatRate;
+    } else {
+      const byDuration = {};
+      eligible.forEach((a) => {
+        const d = a.duration;
+        if (!byDuration[d]) byDuration[d] = { duration: d, count: 0, subtotal: 0 };
+        byDuration[d].count += 1;
+        byDuration[d].subtotal += Number(a.rate) || 0;
+      });
+      lines = Object.values(byDuration).sort((x, y) => x.duration - y.duration);
+      total = lines.reduce((sum, l) => sum + l.subtotal, 0);
+    }
 
     await supabase.from("invoices").insert({
       number: nextInvoiceNumber(),
@@ -322,21 +330,38 @@ export default function Home() {
   }
 
   async function generateCentreInvoice(centre, period) {
-    const centreStudentIds = new Set(students.filter((s) => s.centre === centre).map((s) => s.id));
+    const centreStudents = students.filter((s) => s.centre === centre);
+    const centreStudentIds = new Set(centreStudents.map((s) => s.id));
     const eligible = appointments.filter(
       (a) => centreStudentIds.has(a.student_id) && a.status === "completed" && !a.invoiced && a.date.slice(0, 7) === period
     );
     if (eligible.length === 0) return;
 
+    const studentById = {};
+    centreStudents.forEach((s) => (studentById[s.id] = s));
+
     const byDuration = {};
+    const monthlyBilled = new Set();
+    const lines = [];
+
     eligible.forEach((a) => {
-      const d = a.duration;
-      if (!byDuration[d]) byDuration[d] = { duration: d, count: 0, subtotal: 0 };
-      byDuration[d].count += 1;
-      byDuration[d].subtotal += Number(a.rate) || 0;
+      const student = studentById[a.student_id];
+      if (student?.rate_type === "month") {
+        if (!monthlyBilled.has(student.id)) {
+          monthlyBilled.add(student.id);
+          lines.push({ description: `${student.name} — Monthly tuition (${period})`, amount: Number(student.rate) || 0 });
+        }
+      } else {
+        const d = a.duration;
+        if (!byDuration[d]) byDuration[d] = { duration: d, count: 0, subtotal: 0 };
+        byDuration[d].count += 1;
+        byDuration[d].subtotal += Number(a.rate) || 0;
+      }
     });
-    const lines = Object.values(byDuration).sort((x, y) => x.duration - y.duration);
-    const total = lines.reduce((sum, l) => sum + l.subtotal, 0);
+    Object.values(byDuration)
+      .sort((x, y) => x.duration - y.duration)
+      .forEach((l) => lines.push(l));
+    const total = lines.reduce((sum, l) => sum + (l.amount ?? l.subtotal ?? 0), 0);
 
     await supabase.from("invoices").insert({
       number: nextInvoiceNumber(),
@@ -516,7 +541,7 @@ export default function Home() {
             time: act.time || "15:00",
             duration: Number(act.duration) || 60,
             location: LOCATIONS.includes(act.location) ? act.location : "Play Studio",
-            rate: act.rate != null ? Number(act.rate) : s.rate,
+            rate: act.rate != null ? Number(act.rate) : computeLessonRate(s, Number(act.duration) || 60),
             notes: act.notes || "",
             status: "scheduled",
             invoiced: false,

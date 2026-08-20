@@ -180,6 +180,7 @@ export default function InvoicesTab({ invoices, students, studentMap, appointmen
     .sort((a, b) => b.date.localeCompare(a.date));
 
   const preview = useMemo(() => {
+    const student = students.find((s) => s.id === genForm.studentId);
     const eligible = appointments.filter(
       (a) => a.student_id === genForm.studentId && a.status === "completed" && !a.invoiced && a.date.slice(0, 7) === genForm.period
     );
@@ -187,21 +188,30 @@ export default function InvoicesTab({ invoices, students, studentMap, appointmen
     eligible.forEach((a) => {
       byDuration[a.duration] = (byDuration[a.duration] || 0) + 1;
     });
-    return { count: eligible.length, byDuration };
-  }, [appointments, genForm]);
+    return { count: eligible.length, byDuration, isMonthly: student?.rate_type === "month", monthlyRate: student?.rate };
+  }, [appointments, students, genForm]);
 
   const centrePreview = useMemo(() => {
-    const centreStudentIds = new Set(students.filter((s) => s.centre === centreGenForm.centre).map((s) => s.id));
+    const centreStudents = students.filter((s) => s.centre === centreGenForm.centre);
+    const centreStudentIds = new Set(centreStudents.map((s) => s.id));
+    const studentById = {};
+    centreStudents.forEach((s) => (studentById[s.id] = s));
     const eligible = appointments.filter(
       (a) => centreStudentIds.has(a.student_id) && a.status === "completed" && !a.invoiced && a.date.slice(0, 7) === centreGenForm.period
     );
     const byDuration = {};
     const byStudentCount = {};
+    const monthlyStudentIds = new Set();
     eligible.forEach((a) => {
-      byDuration[a.duration] = (byDuration[a.duration] || 0) + 1;
+      const student = studentById[a.student_id];
+      if (student?.rate_type === "month") {
+        monthlyStudentIds.add(student.id);
+      } else {
+        byDuration[a.duration] = (byDuration[a.duration] || 0) + 1;
+      }
       byStudentCount[a.student_id] = (byStudentCount[a.student_id] || 0) + 1;
     });
-    return { count: eligible.length, byDuration, studentCount: Object.keys(byStudentCount).length };
+    return { count: eligible.length, byDuration, studentCount: Object.keys(byStudentCount).length, monthlyStudentCount: monthlyStudentIds.size };
   }, [appointments, students, centreGenForm]);
 
   return (
@@ -226,6 +236,10 @@ export default function InvoicesTab({ invoices, students, studentMap, appointmen
             </div>
             {preview.count === 0 ? (
               <p className="text-sm text-[#8A8272]">No un-invoiced completed lessons for that student in that month yet.</p>
+            ) : preview.isMonthly ? (
+              <div className="text-sm text-[#5C564A]">
+                Will invoice: a flat {money(preview.monthlyRate)} monthly fee (this student is on a monthly rate, not billed per lesson).
+              </div>
             ) : (
               <div className="text-sm text-[#5C564A]">
                 Will invoice: {Object.entries(preview.byDuration).map(([d, c]) => `${c} × ${d} min`).join(", ")}
@@ -256,7 +270,10 @@ export default function InvoicesTab({ invoices, students, studentMap, appointmen
             <p className="text-sm text-[#8A8272]">No un-invoiced completed lessons for that centre in that month yet.</p>
           ) : (
             <div className="text-sm text-[#5C564A]">
-              Will invoice: {Object.entries(centrePreview.byDuration).map(([d, c]) => `${c} × ${d} min`).join(", ")} — across {centrePreview.studentCount} student(s)
+              Will invoice: {[
+                Object.entries(centrePreview.byDuration).map(([d, c]) => `${c} × ${d} min`).join(", "),
+                centrePreview.monthlyStudentCount > 0 ? `${centrePreview.monthlyStudentCount} student(s) on flat monthly fees` : "",
+              ].filter(Boolean).join(" + ")} — across {centrePreview.studentCount} student(s)
             </div>
           )}
           <Button type="submit">Generate centre invoice</Button>

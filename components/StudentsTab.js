@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   SectionCard, Button, Field, inputCls, timeRange, SearchBox, LOCATIONS, CENTRES, COURSES, GRADES,
-  weekdayAbbrev, endTime, ClashWarning, StatusPill, money, todayISO, DeferredInput,
+  weekdayAbbrev, endTime, ClashWarning, StatusPill, money, todayISO, DeferredInput, RATE_TYPES, rateUnitLabel,
 } from "./ui";
 
 export default function StudentsTab({
@@ -16,7 +16,7 @@ export default function StudentsTab({
   const [absentId, setAbsentId] = useState(null);
   const [absentReason, setAbsentReason] = useState("");
   const [form, setForm] = useState({
-    name: "", rate: "", age: "", gradeChoice: "", gradeOther: "", courseChoice: "", courseOther: "", centre: "",
+    name: "", rate: "", rateType: "lesson", age: "", gradeChoice: "", gradeOther: "", courseChoice: "", courseOther: "", centre: "",
     lessonDay: "", lessonTime: "", lessonDuration: "", lessonServiceId: "", scheduleValue: "3", scheduleUnit: "months",
     notes: "",
   });
@@ -53,6 +53,7 @@ export default function StudentsTab({
     onAdd({
       name: form.name.trim(),
       rate: Number(form.rate) || 0,
+      rate_type: form.rateType,
       age: form.age === "" ? null : Number(form.age),
       grade,
       course,
@@ -69,7 +70,7 @@ export default function StudentsTab({
       _serviceCode: svc ? svc.code : null,
     });
     setForm({
-      name: "", rate: "", age: "", gradeChoice: "", gradeOther: "", courseChoice: "", courseOther: "", centre: "",
+      name: "", rate: "", rateType: "lesson", age: "", gradeChoice: "", gradeOther: "", courseChoice: "", courseOther: "", centre: "",
       lessonDay: "", lessonTime: "", lessonDuration: "", lessonServiceId: "", scheduleValue: "3", scheduleUnit: "months",
       notes: "",
     });
@@ -187,7 +188,12 @@ export default function StudentsTab({
                 {CENTRES.map((c) => <option key={c}>{c}</option>)}
               </select>
             </Field>
-            <Field label="Default rate (RM/lesson)">
+            <Field label="Rate type">
+              <select className={inputCls} value={form.rateType} onChange={(e) => setForm({ ...form, rateType: e.target.value })}>
+                {RATE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </Field>
+            <Field label={`Default rate (${rateUnitLabel(form.rateType)})`}>
               <input type="number" className={inputCls} value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value })} />
             </Field>
             <div className="col-span-2 sm:col-span-3">
@@ -418,7 +424,12 @@ export default function StudentsTab({
                         <Field label="Lesson duration (min)">
                           <DeferredInput type="number" className={inputCls} value={s.lesson_duration ?? ""} onCommit={(v) => onUpdate(s.id, { lesson_duration: v === "" ? null : Number(v) })} />
                         </Field>
-                        <Field label="Rate (RM)">
+                        <Field label="Rate type">
+                          <select className={inputCls} value={s.rate_type || "lesson"} onChange={(e) => onUpdate(s.id, { rate_type: e.target.value })}>
+                            {RATE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                          </select>
+                        </Field>
+                        <Field label={`Rate (${rateUnitLabel(s.rate_type)})`}>
                           <DeferredInput type="number" className={inputCls} value={s.rate} onCommit={(v) => onUpdate(s.id, { rate: Number(v) || 0 })} />
                         </Field>
                         <div className="col-span-2 sm:col-span-5">

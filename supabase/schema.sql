@@ -36,6 +36,7 @@ create table if not exists students (
   lesson_day text default '',
   lesson_time text default '',
   lesson_duration int,
+  rate_type text default 'lesson',
   created_at timestamptz default now()
 );
 

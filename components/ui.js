@@ -137,6 +137,34 @@ export const CENTRES = ["Play Studio", "Xceleration", "Personal"];
 export const COURSES = ["Classical", "Chords Playing", "Other"];
 export const GRADES = ["Beginner", "1", "2", "3", "4", "5", "6", "7", "8", "Other"];
 
+export const RATE_TYPES = [
+  { value: "lesson", label: "Per lesson" },
+  { value: "hour", label: "Per hour" },
+  { value: "month", label: "Monthly" },
+];
+
+export function rateUnitLabel(rateType) {
+  if (rateType === "hour") return "RM/hour";
+  if (rateType === "month") return "RM/month";
+  return "RM/lesson";
+}
+
+// Works out what a single lesson should actually be billed, based on the
+// student's rate type. "Monthly" students are billed a flat fee once a
+// month (handled separately at invoicing time) — not per lesson — so
+// individual lessons carry no per-lesson charge.
+export function computeLessonRate(student, duration) {
+  if (!student) return 0;
+  const type = student.rate_type || "lesson";
+  const rate = Number(student.rate) || 0;
+  if (type === "hour") {
+    const mins = Number(duration) || 60;
+    return Math.round(((rate * mins) / 60) * 100) / 100;
+  }
+  if (type === "month") return 0;
+  return rate;
+}
+
 export const todayISO = () => {
   const d = new Date();
   const y = d.getFullYear();

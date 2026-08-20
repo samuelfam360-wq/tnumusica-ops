@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import {
   SectionCard, Button, Field, inputCls, LOCATIONS, todayISO, money, StatusPill,
   endTime, timeRange, SearchableSelect, WEEKDAY_LABELS, toISODate, addDays,
-  weekdayAbbrev, ClashWarning, Modal,
+  weekdayAbbrev, ClashWarning, Modal, computeLessonRate,
 } from "./ui";
 
 function toISO(d) {
@@ -158,7 +158,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
       time: form.time,
       duration: Number(form.duration) || 60,
       location: form.location,
-      rate: form.rate === "" ? student?.rate || 0 : Number(form.rate),
+      rate: form.rate === "" ? computeLessonRate(student, Number(form.duration) || 60) : Number(form.rate),
       service_id: svc ? svc.id : null,
       service_code: svc ? svc.code : null,
       status: "scheduled",
@@ -361,10 +361,10 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                 {LOCATIONS.map((l) => <option key={l}>{l}</option>)}
               </select>
             </Field>
-            <Field label="Rate (RM, optional)">
+            <Field label="Rate (RM, optional — leave blank to auto-fill)">
               <input
                 type="number"
-                placeholder={studentMap[form.studentId]?.rate ? String(studentMap[form.studentId].rate) : "0"}
+                placeholder={String(computeLessonRate(studentMap[form.studentId], Number(form.duration) || 60))}
                 className={inputCls}
                 value={form.rate}
                 onChange={(e) => setForm({ ...form, rate: e.target.value })}
