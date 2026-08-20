@@ -1,243 +1,114 @@
--- Run this once in Supabase: Project > SQL Editor > New query > paste all > Run
+-- Play Studio Manager — database schema for Supabase
+-- Run this in Supabase: Project > SQL Editor > New query > paste all > Run
 
 create extension if not exists "pgcrypto";
 
--- ---------- Access list ----------
--- Only emails in this table can read/write any data below.
--- Add or remove people by editing rows in this table (Table Editor, or SQL).
-create table if not exists allowed_users (
-  email text primary key
+create table profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  role text not null check (role in ('admin','teacher')),
+  created_at timestamptz default now()
 );
 
--- Seed with your own email so you're not locked out. Add more rows for
--- teammates, e.g. insert into allowed_users (email) values ('someone@x.com');
-insert into allowed_users (email) values ('YOUR_EMAIL_HERE@example.com')
-on conflict do nothing;
+create table teachers (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid unique references auth.users(id) on delete set null,
+  name text not null,
+  pay_type text not null check (pay_type in ('flat','percent')),
+  rate numeric not null default 0,
+  created_at timestamptz default now()
+);
 
-alter table allowed_users enable row level security;
-
--- Anyone signed in can check ONLY their own email against the list (needed
--- so the app can show "not authorized" correctly) — they cannot see the
--- rest of the list.
-create policy "read own allowlist row"
-  on allowed_users for select
-  using (email = auth.email());
-
--- ---------- Core tables ----------
-create table if not exists students (
+create table students (
   id uuid primary key default gen_random_uuid(),
   name text not null,
-  rate numeric not null default 0,
-  notes text default '',
-  age int,
-  grade text default '',
-  course text default '',
-  centre text default '',
-  lesson_day text default '',
-  lesson_time text default '',
-  lesson_duration int,
-  rate_type text default 'lesson',
+  price numeric not null default 0,
   created_at timestamptz default now()
 );
 
-create table if not exists services (
+create table lessons (
   id uuid primary key default gen_random_uuid(),
-  code text not null,
-  label text not null,
-  duration int not null,
-  rate numeric not null default 0,
-  created_at timestamptz default now()
-);
-
-create table if not exists appointments (
-  id uuid primary key default gen_random_uuid(),
-  student_id uuid references students(id) on delete cascade,
   date date not null,
-  time text not null,
-  duration int not null default 60,
-  location text default 'Play Studio',
-  rate numeric not null default 0,
-  service_id uuid references services(id) on delete set null,
-  service_code text,
-  status text not null default 'scheduled',
-  invoiced boolean not null default false,
-  series_id uuid,
-  notes text default '',
-  rescheduled_from uuid references appointments(id) on delete set null,
+  time time not null,
+  teacher_id uuid not null references teachers(id) on delete cascade,
+  student_id uuid not null references students(id) on delete cascade,
+  price numeric not null default 0,
+  status text not null default 'scheduled' check (status in ('scheduled','attended','missed-teacher','missed-student','rescheduled')),
+  reason text,
+  paid boolean not null default false,
+  replacement_of uuid references lessons(id) on delete set null,
   created_at timestamptz default now()
 );
 
-create table if not exists invoices (
+create table blocked_dates (
   id uuid primary key default gen_random_uuid(),
-  number text not null,
-  student_id uuid references students(id) on delete cascade,
-  billed_to text,
-  description text,
-  total numeric not null default 0,
+  teacher_id uuid not null references teachers(id) on delete cascade,
   date date not null,
-  period text,
-  lines jsonb,
-  status text not null default 'unpaid',
-  paid_date date,
+  reason text,
   created_at timestamptz default now()
 );
 
--- ---------- Row-level security: only allowed_users can touch data ----------
+-- Row level security
+
+alter table profiles enable row level security;
+alter table teachers enable row level security;
 alter table students enable row level security;
-alter table services enable row level security;
-alter table appointments enable row level security;
-alter table invoices enable row level security;
+alter table lessons enable row level security;
+alter table blocked_dates enable row level security;
 
-create policy "allowed users full access" on students
-  for all
-  using (exists (select 1 from allowed_users au where au.email = auth.email()))
-  with check (exists (select 1 from allowed_users au where au.email = auth.email()));
+create or replace function is_admin() returns boolean as $$
+  select exists(select 1 from profiles where id = auth.uid() and role = 'admin');
+$$ language sql security definer stable;
 
-create policy "allowed users full access" on services
-  for all
-  using (exists (select 1 from allowed_users au where au.email = auth.email()))
-  with check (exists (select 1 from allowed_users au where au.email = auth.email()));
+create or replace function my_teacher_id() returns uuid as $$
+  select id from teachers where user_id = auth.uid();
+$$ language sql security definer stable;
 
-create policy "allowed users full access" on appointments
-  for all
-  using (exists (select 1 from allowed_users au where au.email = auth.email()))
-  with check (exists (select 1 from allowed_users au where au.email = auth.email()));
+-- profiles
+create policy "read own profile" on profiles for select using (id = auth.uid());
+create policy "admin read all profiles" on profiles for select using (is_admin());
+create policy "admin manage profiles" on profiles for all using (is_admin()) with check (is_admin());
 
-create policy "allowed users full access" on invoices
-  for all
-  using (exists (select 1 from allowed_users au where au.email = auth.email()))
-  with check (exists (select 1 from allowed_users au where au.email = auth.email()));
+-- teachers
+create policy "authenticated read teachers" on teachers for select using (auth.role() = 'authenticated');
+create policy "admin insert teachers" on teachers for insert with check (is_admin());
+create policy "admin update teachers" on teachers for update using (is_admin());
+create policy "admin delete teachers" on teachers for delete using (is_admin());
 
-grant select, insert, update, delete on allowed_users to authenticated;
-grant select, insert, update, delete on students to authenticated;
-grant select, insert, update, delete on services to authenticated;
-grant select, insert, update, delete on appointments to authenticated;
-grant select, insert, update, delete on invoices to authenticated;
+-- students
+create policy "authenticated read students" on students for select using (auth.role() = 'authenticated');
+create policy "admin insert students" on students for insert with check (is_admin());
+create policy "admin update students" on students for update using (is_admin());
+create policy "admin delete students" on students for delete using (is_admin());
 
--- ---------- Materials / teaching products ----------
-create table if not exists materials (
-  id uuid primary key default gen_random_uuid(),
-  name text not null,
-  notes text default '',
-  cost_mode text not null default 'batch', -- 'batch' or 'per_unit'
-  batch_cost numeric not null default 0,
-  batch_quantity int not null default 0,
-  per_unit_cost numeric not null default 0,
-  created_at timestamptz default now()
-);
+-- lessons
+create policy "authenticated read lessons" on lessons for select using (auth.role() = 'authenticated');
+create policy "admin insert lessons" on lessons for insert with check (is_admin());
+create policy "admin update lessons" on lessons for update using (is_admin());
+create policy "teacher update own lessons" on lessons for update using (teacher_id = my_teacher_id());
+create policy "admin delete lessons" on lessons for delete using (is_admin());
 
-create table if not exists material_sales (
-  id uuid primary key default gen_random_uuid(),
-  material_id uuid references materials(id) on delete cascade,
-  student_id uuid references students(id) on delete set null,
-  sale_type text not null default 'individual', -- 'individual' or 'bulk'
-  quantity int not null default 1,
-  unit_price numeric not null default 0,
-  total numeric not null default 0,
-  date date not null,
-  created_at timestamptz default now()
-);
+-- a teacher may only ever change status/reason on their own lesson rows, never price/paid/date/who
+create or replace function restrict_teacher_lesson_update() returns trigger as $$
+begin
+  if not is_admin() then
+    if NEW.price is distinct from OLD.price
+       or NEW.paid is distinct from OLD.paid
+       or NEW.teacher_id is distinct from OLD.teacher_id
+       or NEW.student_id is distinct from OLD.student_id
+       or NEW.date is distinct from OLD.date
+       or NEW.time is distinct from OLD.time then
+      raise exception 'Teachers can only update lesson status and reason';
+    end if;
+  end if;
+  return NEW;
+end;
+$$ language plpgsql security definer;
 
-alter table materials enable row level security;
-alter table material_sales enable row level security;
+create trigger lessons_teacher_update_guard before update on lessons
+for each row execute function restrict_teacher_lesson_update();
 
-create policy "allowed users full access" on materials
-  for all
-  using (exists (select 1 from allowed_users au where au.email = auth.email()))
-  with check (exists (select 1 from allowed_users au where au.email = auth.email()));
-
-create policy "allowed users full access" on material_sales
-  for all
-  using (exists (select 1 from allowed_users au where au.email = auth.email()))
-  with check (exists (select 1 from allowed_users au where au.email = auth.email()));
-
-grant select, insert, update, delete on materials to authenticated;
-grant select, insert, update, delete on material_sales to authenticated;
-
--- ---------- Business profile (used on invoice PDFs) ----------
-create table if not exists business_settings (
-  id text primary key default 'main',
-  company_name text default '',
-  address text default '',
-  phone text default '',
-  email text default '',
-  bank_name text default '',
-  bank_account_name text default '',
-  bank_account_number text default '',
-  license_info text default '',
-  payment_terms text default '',
-  logo_base64 text default '',
-  updated_at timestamptz default now()
-);
-insert into business_settings (id) values ('main') on conflict do nothing;
-
-alter table business_settings enable row level security;
-
-create policy "allowed users full access" on business_settings
-  for all
-  using (exists (select 1 from allowed_users au where au.email = auth.email()))
-  with check (exists (select 1 from allowed_users au where au.email = auth.email()));
-
-grant select, insert, update, delete on business_settings to authenticated;
-
--- ---------- Unavailable days (teacher away / blocked out) ----------
-create table if not exists unavailable_dates (
-  date date primary key,
-  reason text default '',
-  reason_type text default 'personal',
-  created_at timestamptz default now()
-);
-
-alter table unavailable_dates enable row level security;
-
-create policy "allowed users full access" on unavailable_dates
-  for all
-  using (exists (select 1 from allowed_users au where au.email = auth.email()))
-  with check (exists (select 1 from allowed_users au where au.email = auth.email()));
-
-grant select, insert, update, delete on unavailable_dates to authenticated;
-
--- ---------- Expenses / claims (for accountant handoff) ----------
-create table if not exists expenses (
-  id uuid primary key default gen_random_uuid(),
-  date date not null,
-  amount numeric not null default 0,
-  description text not null,
-  category text not null default 'Other / Miscellaneous',
-  paid_via text not null default 'Company',
-  reimbursed boolean not null default false,
-  reimbursed_date date,
-  notes text default '',
-  created_at timestamptz default now()
-);
-
-alter table expenses enable row level security;
-
-create policy "allowed users full access" on expenses
-  for all
-  using (exists (select 1 from allowed_users au where au.email = auth.email()))
-  with check (exists (select 1 from allowed_users au where au.email = auth.email()));
-
-grant select, insert, update, delete on expenses to authenticated;
-
--- ---------- Teaching plan (curriculum planning, separate from the calendar) ----------
-create table if not exists lesson_plan_items (
-  id uuid primary key default gen_random_uuid(),
-  student_id uuid references students(id) on delete cascade,
-  position int not null default 0,
-  lesson_date date,
-  lesson_time text,
-  topic text not null,
-  remarks text default '',
-  status text not null default 'planned',
-  created_at timestamptz default now()
-);
-
-alter table lesson_plan_items enable row level security;
-
-create policy "allowed users full access" on lesson_plan_items
-  for all
-  using (exists (select 1 from allowed_users au where au.email = auth.email()))
-  with check (exists (select 1 from allowed_users au where au.email = auth.email()));
-
-grant select, insert, update, delete on lesson_plan_items to authenticated;
+-- blocked_dates
+create policy "authenticated read blocked_dates" on blocked_dates for select using (auth.role() = 'authenticated');
+create policy "admin manage blocked_dates" on blocked_dates for all using (is_admin()) with check (is_admin());
+create policy "teacher insert own blocked_dates" on blocked_dates for insert with check (teacher_id = my_teacher_id());
+create policy "teacher delete own blocked_dates" on blocked_dates for delete using (teacher_id = my_teacher_id());
