@@ -143,6 +143,17 @@ export const RATE_TYPES = [
   { value: "month", label: "Monthly" },
 ];
 
+export const STUDENT_STATUSES = [
+  { value: "active", label: "Active" },
+  { value: "temporary_stop", label: "Temporary Stop" },
+  { value: "terminated", label: "Terminated" },
+  { value: "graduated", label: "Graduated" },
+];
+
+export function studentStatusLabel(status) {
+  return STUDENT_STATUSES.find((s) => s.value === (status || "active"))?.label || "Active";
+}
+
 export function rateUnitLabel(rateType) {
   if (rateType === "hour") return "RM/hour";
   if (rateType === "month") return "RM/month";

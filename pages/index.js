@@ -193,6 +193,52 @@ export default function Home() {
     refetchAll();
   }
 
+  // Switching a student to Temporary Stop / Terminated / Graduated cancels
+  // their not-yet-completed lessons from the chosen month onward, freeing
+  // that slot up — completed lessons (real history) are left untouched.
+  async function changeStudentStatus(studentId, newStatus, stopMonth) {
+    await supabase.from("students").update({ status: newStatus }).eq("id", studentId);
+    if (newStatus !== "active" && stopMonth) {
+      const toCancel = appointments
+        .filter((a) => a.student_id === studentId && a.status === "scheduled" && a.date.slice(0, 7) >= stopMonth)
+        .map((a) => a.id);
+      if (toCancel.length > 0) {
+        await supabase.from("appointments").update({ status: "cancelled" }).in("id", toCancel);
+      }
+    }
+    refetchAll();
+  }
+
+  // Resuming a Temporary Stop student books them back onto their usual day
+  // and time, starting from a date the owner picks — then flips them back
+  // to Active.
+  async function resumeStudent(studentId, startFromDate, value, unit) {
+    const student = students.find((s) => s.id === studentId);
+    if (!student || !student.lesson_day || !student.lesson_time) return;
+
+    const startDate = nextDateForWeekday(student.lesson_day, startFromDate);
+    if (!startDate) return;
+
+    const location = LOCATIONS.includes(student.centre) ? student.centre : LOCATIONS[0];
+    const weeks = resolveWeekCount(startDate, value, unit);
+    const seriesId = weeks > 1 ? newSeriesId() : null;
+    const rows = Array.from({ length: weeks }, (_, i) => ({
+      student_id: student.id,
+      date: addDays(startDate, i * 7),
+      time: student.lesson_time,
+      duration: student.lesson_duration || 30,
+      location,
+      rate: computeLessonRate(student, student.lesson_duration || 30),
+      status: "scheduled",
+      invoiced: false,
+      series_id: seriesId,
+      notes: "",
+    }));
+    await supabase.from("appointments").insert(rows);
+    await supabase.from("students").update({ status: "active" }).eq("id", studentId);
+    refetchAll();
+  }
+
   async function updateStudent(id, patch) {
     await supabase.from("students").update(patch).eq("id", id);
     refetchAll();
@@ -737,7 +783,7 @@ export default function Home() {
           <StatCard label="This month, materials" value={money(monthMaterialsProfit)} accent={monthMaterialsProfit >= 0 ? "#7A8B6F" : "#6B2C3E"} />
           <StatCard label="Unpaid invoices" value={money(unpaidInvoicesTotal)} accent="#6B2C3E" />
           <StatCard label="Upcoming lessons" value={upcomingCount} />
-          <StatCard label="Active students" value={students.length} />
+          <StatCard label="Active students" value={students.filter((s) => (s.status || "active") === "active").length} />
         </div>
 
         <AICommandBar
@@ -813,6 +859,8 @@ export default function Home() {
             onBulkUpdateStudents={bulkUpdateStudents}
             onBulkImportStudents={bulkImportStudents}
             onExtendSchedule={extendStudentSchedule}
+            onChangeStudentStatus={changeStudentStatus}
+            onResumeStudent={resumeStudent}
             lessonPlans={lessonPlans}
             onAddLessonPlanItem={addLessonPlanItem}
             onUpdateLessonPlanItem={updateLessonPlanItem}

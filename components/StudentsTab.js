@@ -2,11 +2,13 @@ import { useState } from "react";
 import {
   SectionCard, Button, Field, inputCls, timeRange, SearchBox, LOCATIONS, CENTRES, COURSES, GRADES,
   weekdayAbbrev, endTime, ClashWarning, StatusPill, money, todayISO, DeferredInput, RATE_TYPES, rateUnitLabel, parseCSV,
+  STUDENT_STATUSES, studentStatusLabel,
 } from "./ui";
 
 export default function StudentsTab({
   students, appointments = [], services = [], onAdd, onUpdate, onRemove,
   onBulkRemoveStudents, onBulkUpdateStudents, onExtendSchedule, onBulkImportStudents,
+  onChangeStudentStatus, onResumeStudent,
   lessonPlans = [], onAddLessonPlanItem, onUpdateLessonPlanItem, onRemoveLessonPlanItem, onMoveLessonPlanItem,
   onSetAppointmentStatus, onUpdateAppointment, onReschedule, onMarkAbsent, onRemoveAppointment,
 }) {
@@ -17,6 +19,10 @@ export default function StudentsTab({
   const [absentReason, setAbsentReason] = useState("");
   const [csvPreview, setCsvPreview] = useState(null);
   const [csvError, setCsvError] = useState("");
+  const [statusChangeFor, setStatusChangeFor] = useState(null); // { studentId, newStatus }
+  const [stopMonth, setStopMonth] = useState(todayISO().slice(0, 7));
+  const [resumeFor, setResumeFor] = useState(null); // studentId
+  const [resumeForm, setResumeForm] = useState({ date: todayISO(), value: "3", unit: "months" });
   const [form, setForm] = useState({
     name: "", rate: "", rateType: "lesson", age: "", gradeChoice: "", gradeOther: "", courseChoice: "", courseOther: "", centre: "",
     lessonDay: "", lessonTime: "", lessonDuration: "", lessonServiceId: "", scheduleValue: "3", scheduleUnit: "months",
@@ -30,6 +36,7 @@ export default function StudentsTab({
   const [dayFilter, setDayFilter] = useState("");
   const [courseFilter, setCourseFilter] = useState("");
   const [gradeFilter, setGradeFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [expanded, setExpanded] = useState(null);
   const [editingApptId, setEditingApptId] = useState(null);
   const [editApptForm, setEditApptForm] = useState(null);
@@ -148,6 +155,43 @@ export default function StudentsTab({
     setCsvPreview(null);
   }
 
+  function downloadCsvTemplate() {
+    const header = "Name,Age,Grade,Course,Centre,Rate,Rate Type,Notes";
+    const example = "Aaron,10,G2,Classical,Play Studio,40,Per lesson,";
+    const blob = new Blob([header + "\n" + example + "\n"], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "students_template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function requestStatusChange(studentId, newStatus) {
+    if (newStatus === "active") {
+      // Switching back to Active is just a correction — no lessons to clean up.
+      onUpdate(studentId, { status: "active" });
+      return;
+    }
+    setStopMonth(todayISO().slice(0, 7));
+    setStatusChangeFor({ studentId, newStatus });
+  }
+  function confirmStatusChange() {
+    if (!statusChangeFor) return;
+    onChangeStudentStatus(statusChangeFor.studentId, statusChangeFor.newStatus, stopMonth);
+    setStatusChangeFor(null);
+  }
+
+  function openResumeFor(studentId) {
+    setResumeFor(studentId);
+    setResumeForm({ date: todayISO(), value: "3", unit: "months" });
+  }
+  function submitResume(e) {
+    e.preventDefault();
+    onResumeStudent(resumeFor, resumeForm.date, resumeForm.value, resumeForm.unit);
+    setResumeFor(null);
+  }
+
   function pickApptService(serviceId, targetForm, setTargetForm) {
     const svc = services.find((s) => s.id === serviceId);
     setTargetForm({
@@ -205,6 +249,7 @@ export default function StudentsTab({
   const uniqueGrades = [...new Set(students.map((s) => s.grade).filter(Boolean))].sort();
 
   const filtered = students
+    .filter((s) => !statusFilter || (s.status || "active") === statusFilter)
     .filter((s) => !centreFilter || s.centre === centreFilter)
     .filter((s) => !dayFilter || s.lesson_day === dayFilter)
     .filter((s) => !courseFilter || s.course === courseFilter)
@@ -322,15 +367,18 @@ export default function StudentsTab({
               Columns expected (any order, extras ignored): <strong>Name</strong> (required), Age, Grade, Course, Centre, Rate, Rate Type (Per lesson / Per hour / Monthly), Notes.
               This only adds students — it doesn't set up a recurring schedule; do that per student afterward if needed.
             </p>
-            <label className="inline-flex items-center gap-2 cursor-pointer">
-              <span className="px-3.5 py-2 rounded-md text-sm font-medium border border-[#D8D0BE] hover:bg-[#F3EEE2]">Choose CSV file</span>
-              <input
-                type="file"
-                accept=".csv,text/csv"
-                className="hidden"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCsvFile(f); e.target.value = ""; }}
-              />
-            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="secondary" onClick={downloadCsvTemplate}>Download template</Button>
+              <label className="inline-flex items-center gap-2 cursor-pointer">
+                <span className="px-3.5 py-2 rounded-md text-sm font-medium border border-[#D8D0BE] hover:bg-[#F3EEE2]">Choose CSV file</span>
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  className="hidden"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCsvFile(f); e.target.value = ""; }}
+                />
+              </label>
+            </div>
             {csvError && <p className="text-xs text-[#6B2C3E]">{csvError}</p>}
           </div>
         ) : (
@@ -371,9 +419,13 @@ export default function StudentsTab({
       </SectionCard>
 
       <SectionCard
-        title={`Students (${students.length})`}
+        title={`Students (${filtered.length}${statusFilter ? ` ${studentStatusLabel(statusFilter).toLowerCase()}` : ""} of ${students.length})`}
         action={
           <div className="flex flex-wrap items-center gap-2">
+            <select className={inputCls} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="">All statuses</option>
+              {STUDENT_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
             <select className={inputCls} value={centreFilter} onChange={(e) => setCentreFilter(e.target.value)}>
               <option value="">All centres</option>
               {CENTRES.map((c) => <option key={c}>{c}</option>)}
@@ -487,6 +539,9 @@ export default function StudentsTab({
                         {s.course && <span className="text-[#8A8272] font-normal"> · {s.course}</span>}
                         {s.centre && <span className="text-[#8A8272] font-normal"> · {s.centre}</span>}
                         {s.lesson_day && <span className="text-[#8A8272] font-normal"> · {s.lesson_day}</span>}
+                        {(s.status || "active") !== "active" && (
+                          <span className="text-[#B8563D] font-normal"> · {studentStatusLabel(s.status)}</span>
+                        )}
                       </div>
                       {s.notes && <div className="text-xs text-[#8A8272]">{s.notes}</div>}
                     </div>
@@ -533,6 +588,11 @@ export default function StudentsTab({
                             {CENTRES.map((c) => <option key={c}>{c}</option>)}
                           </select>
                         </Field>
+                        <Field label="Status">
+                          <select className={inputCls} value={s.status || "active"} onChange={(e) => requestStatusChange(s.id, e.target.value)}>
+                            {STUDENT_STATUSES.map((st) => <option key={st.value} value={st.value}>{st.label}</option>)}
+                          </select>
+                        </Field>
                         <Field label="Lesson day">
                           <select className={inputCls} value={s.lesson_day || ""} onChange={(e) => onUpdate(s.id, { lesson_day: e.target.value })}>
                             <option value="">—</option>
@@ -559,6 +619,60 @@ export default function StudentsTab({
                           </Field>
                         </div>
                       </div>
+
+                      {statusChangeFor?.studentId === s.id && (
+                        <div className="border border-[#8A6D3B] rounded-md p-3 space-y-2">
+                          <div className="text-sm font-medium">
+                            Marking {s.name} as {studentStatusLabel(statusChangeFor.newStatus)}
+                          </div>
+                          <p className="text-xs text-[#5C564A]">
+                            Stopping from which month? Every not-yet-completed lesson from that month onward will be cancelled, freeing up that slot. Anything already marked completed stays untouched.
+                          </p>
+                          <Field label="Stopping from">
+                            <input type="month" className={inputCls} value={stopMonth} onChange={(e) => setStopMonth(e.target.value)} />
+                          </Field>
+                          <div className="flex gap-2">
+                            <Button onClick={confirmStatusChange}>Confirm</Button>
+                            <Button variant="secondary" onClick={() => setStatusChangeFor(null)}>Cancel</Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {(s.status || "active") === "temporary_stop" && (
+                        resumeFor === s.id ? (
+                          <form onSubmit={submitResume} className="border border-[#7A8B6F] rounded-md p-3 space-y-2">
+                            <div className="text-sm font-medium">Resume {s.name}'s lessons</div>
+                            {(!s.lesson_day || !s.lesson_time) ? (
+                              <p className="text-xs text-[#6B2C3E]">This student has no Permanent day/time set — set that above first.</p>
+                            ) : (
+                              <>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                  <Field label="Starting from">
+                                    <input type="date" className={inputCls} value={resumeForm.date} onChange={(e) => setResumeForm({ ...resumeForm, date: e.target.value })} />
+                                  </Field>
+                                  <Field label="For how long">
+                                    <div className="flex gap-1">
+                                      <input type="number" min="1" className={inputCls + " w-16"} value={resumeForm.value} onChange={(e) => setResumeForm({ ...resumeForm, value: e.target.value })} />
+                                      <select className={inputCls} value={resumeForm.unit} onChange={(e) => setResumeForm({ ...resumeForm, unit: e.target.value })}>
+                                        <option value="weeks">Weeks</option>
+                                        <option value="months">Months</option>
+                                      </select>
+                                    </div>
+                                  </Field>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button type="submit">Book it in</Button>
+                                  <Button type="button" variant="secondary" onClick={() => setResumeFor(null)}>Cancel</Button>
+                                </div>
+                              </>
+                            )}
+                          </form>
+                        ) : (
+                          <div>
+                            <Button variant="secondary" onClick={() => openResumeFor(s.id)}>Resume lessons</Button>
+                          </div>
+                        )
+                      )}
 
                       {s.lesson_day && s.lesson_time && (
                         <div className="border border-[#EDE7DB] rounded-md p-3 flex flex-wrap items-end gap-3">
