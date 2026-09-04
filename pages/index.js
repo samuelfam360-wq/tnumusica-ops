@@ -10,13 +10,14 @@ import MaterialsTab from "../components/MaterialsTab";
 import SettingsTab from "../components/SettingsTab";
 import ExpensesTab from "../components/ExpensesTab";
 import ReportsTab from "../components/ReportsTab";
+import DashboardTab from "../components/DashboardTab";
 import AICommandBar from "../components/AICommandBar";
 import { KeyNav, StatCard, money, todayISO, addDays, toISODate, LOCATIONS, computeLessonRate } from "../components/ui";
 
 export default function Home() {
   const [session, setSession] = useState(undefined); // undefined = loading, null = signed out
   const [authorized, setAuthorized] = useState(null); // null = checking, true/false once known
-  const [tab, setTab] = useState("calendar");
+  const [tab, setTab] = useState("dashboard");
 
   const [students, setStudents] = useState([]);
   const [appointments, setAppointments] = useState([]);
@@ -743,6 +744,7 @@ export default function Home() {
 
         <KeyNav
           tabs={[
+            { id: "dashboard", label: "Dashboard" },
             { id: "calendar", label: "Calendar" },
             { id: "students", label: "Students" },
             { id: "rates", label: "Rates" },
@@ -757,6 +759,17 @@ export default function Home() {
           onChange={setTab}
         />
 
+        {tab === "dashboard" && (
+          <DashboardTab
+            students={students}
+            appointments={appointments}
+            invoices={invoices}
+            materials={materials}
+            materialSales={materialSales}
+            expenses={expenses}
+            studentMap={studentMap}
+          />
+        )}
         {tab === "calendar" && (
           <CalendarTab
             appointments={appointments}
