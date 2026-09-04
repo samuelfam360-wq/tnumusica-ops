@@ -208,6 +208,14 @@ export default function Home() {
     await supabase.from("students").update(patch).in("id", ids);
     refetchAll();
   }
+  async function bulkImportStudents(rows) {
+    const { error } = await supabase.from("students").insert(rows);
+    if (error) {
+      alert(`Couldn't import students: ${error.message}`);
+      return;
+    }
+    refetchAll();
+  }
 
   // ---- Services / rates ----
   async function addService(payload) {
@@ -801,6 +809,7 @@ export default function Home() {
             onRemove={removeStudent}
             onBulkRemoveStudents={bulkRemoveStudents}
             onBulkUpdateStudents={bulkUpdateStudents}
+            onBulkImportStudents={bulkImportStudents}
             onExtendSchedule={extendStudentSchedule}
             lessonPlans={lessonPlans}
             onAddLessonPlanItem={addLessonPlanItem}

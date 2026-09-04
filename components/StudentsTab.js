@@ -1,12 +1,12 @@
 import { useState } from "react";
 import {
   SectionCard, Button, Field, inputCls, timeRange, SearchBox, LOCATIONS, CENTRES, COURSES, GRADES,
-  weekdayAbbrev, endTime, ClashWarning, StatusPill, money, todayISO, DeferredInput, RATE_TYPES, rateUnitLabel,
+  weekdayAbbrev, endTime, ClashWarning, StatusPill, money, todayISO, DeferredInput, RATE_TYPES, rateUnitLabel, parseCSV,
 } from "./ui";
 
 export default function StudentsTab({
   students, appointments = [], services = [], onAdd, onUpdate, onRemove,
-  onBulkRemoveStudents, onBulkUpdateStudents, onExtendSchedule,
+  onBulkRemoveStudents, onBulkUpdateStudents, onExtendSchedule, onBulkImportStudents,
   lessonPlans = [], onAddLessonPlanItem, onUpdateLessonPlanItem, onRemoveLessonPlanItem, onMoveLessonPlanItem,
   onSetAppointmentStatus, onUpdateAppointment, onReschedule, onMarkAbsent, onRemoveAppointment,
 }) {
@@ -15,6 +15,8 @@ export default function StudentsTab({
   const [planForm, setPlanForm] = useState({});
   const [absentId, setAbsentId] = useState(null);
   const [absentReason, setAbsentReason] = useState("");
+  const [csvPreview, setCsvPreview] = useState(null);
+  const [csvError, setCsvError] = useState("");
   const [form, setForm] = useState({
     name: "", rate: "", rateType: "lesson", age: "", gradeChoice: "", gradeOther: "", courseChoice: "", courseOther: "", centre: "",
     lessonDay: "", lessonTime: "", lessonDuration: "", lessonServiceId: "", scheduleValue: "3", scheduleUnit: "months",
@@ -80,6 +82,70 @@ export default function StudentsTab({
     return appointments
       .filter((a) => a.student_id === studentId)
       .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  }
+
+  function normalizeRateType(v) {
+    const t = (v || "").trim().toLowerCase();
+    if (t.startsWith("hour")) return "hour";
+    if (t.startsWith("month")) return "month";
+    return "lesson";
+  }
+
+  function handleCsvFile(file) {
+    setCsvError("");
+    setCsvPreview(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const rows = parseCSV(String(reader.result));
+        if (rows.length < 2) {
+          setCsvError("That file doesn't have any data rows below the header.");
+          return;
+        }
+        const header = rows[0].map((h) => h.trim().toLowerCase());
+        const idx = {
+          name: header.findIndex((h) => h === "name"),
+          age: header.findIndex((h) => h === "age"),
+          grade: header.findIndex((h) => h === "grade"),
+          course: header.findIndex((h) => h === "course"),
+          centre: header.findIndex((h) => h === "centre" || h === "center"),
+          rate: header.findIndex((h) => h === "rate"),
+          rateType: header.findIndex((h) => h === "rate type" || h === "ratetype" || h === "rate_type"),
+          notes: header.findIndex((h) => h === "notes"),
+        };
+        if (idx.name === -1) {
+          setCsvError('CSV must have a "Name" column.');
+          return;
+        }
+        const parsed = rows.slice(1)
+          .filter((r) => r.some((cell) => cell.trim() !== ""))
+          .map((r) => ({
+            name: (r[idx.name] || "").trim(),
+            age: idx.age >= 0 && r[idx.age] ? Number(r[idx.age]) : null,
+            grade: idx.grade >= 0 ? (r[idx.grade] || "").trim() : "",
+            course: idx.course >= 0 ? (r[idx.course] || "").trim() : "",
+            centre: idx.centre >= 0 ? (r[idx.centre] || "").trim() : "",
+            rate: idx.rate >= 0 && r[idx.rate] ? Number(r[idx.rate]) : 0,
+            rate_type: idx.rateType >= 0 ? normalizeRateType(r[idx.rateType]) : "lesson",
+            notes: idx.notes >= 0 ? (r[idx.notes] || "").trim() : "",
+          }))
+          .filter((s) => s.name);
+        if (parsed.length === 0) {
+          setCsvError("No valid rows found — make sure each row has a name.");
+          return;
+        }
+        setCsvPreview(parsed);
+      } catch (err) {
+        setCsvError("Couldn't read that file — make sure it's a plain CSV export.");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function confirmCsvImport() {
+    if (!csvPreview || csvPreview.length === 0) return;
+    onBulkImportStudents(csvPreview);
+    setCsvPreview(null);
   }
 
   function pickApptService(serviceId, targetForm, setTargetForm) {
@@ -247,6 +313,61 @@ export default function StudentsTab({
 
           <Button type="submit">Add student</Button>
         </form>
+      </SectionCard>
+
+      <SectionCard title="Bulk import from CSV">
+        {!csvPreview ? (
+          <div className="space-y-2">
+            <p className="text-sm text-[#8A8272]">
+              Columns expected (any order, extras ignored): <strong>Name</strong> (required), Age, Grade, Course, Centre, Rate, Rate Type (Per lesson / Per hour / Monthly), Notes.
+              This only adds students — it doesn't set up a recurring schedule; do that per student afterward if needed.
+            </p>
+            <label className="inline-flex items-center gap-2 cursor-pointer">
+              <span className="px-3.5 py-2 rounded-md text-sm font-medium border border-[#D8D0BE] hover:bg-[#F3EEE2]">Choose CSV file</span>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCsvFile(f); e.target.value = ""; }}
+              />
+            </label>
+            {csvError && <p className="text-xs text-[#6B2C3E]">{csvError}</p>}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-[#5C564A]">Found {csvPreview.length} student(s) — review before importing:</p>
+            <div className="max-h-64 overflow-y-auto border border-[#EDE7DB] rounded-md">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-[#8A8272] uppercase border-b border-[#EDE7DB]">
+                    <th className="px-2 py-1.5">Name</th>
+                    <th className="px-2 py-1.5">Age</th>
+                    <th className="px-2 py-1.5">Grade</th>
+                    <th className="px-2 py-1.5">Course</th>
+                    <th className="px-2 py-1.5">Centre</th>
+                    <th className="px-2 py-1.5">Rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {csvPreview.map((s, i) => (
+                    <tr key={i} className="border-b border-[#EDE7DB] last:border-0">
+                      <td className="px-2 py-1.5 font-medium">{s.name}</td>
+                      <td className="px-2 py-1.5">{s.age ?? "-"}</td>
+                      <td className="px-2 py-1.5">{s.grade || "-"}</td>
+                      <td className="px-2 py-1.5">{s.course || "-"}</td>
+                      <td className="px-2 py-1.5">{s.centre || "-"}</td>
+                      <td className="px-2 py-1.5">{money(s.rate)} ({rateUnitLabel(s.rate_type)})</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={confirmCsvImport}>Import {csvPreview.length} student(s)</Button>
+              <Button variant="secondary" onClick={() => setCsvPreview(null)}>Cancel</Button>
+            </div>
+          </div>
+        )}
       </SectionCard>
 
       <SectionCard
