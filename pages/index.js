@@ -11,6 +11,7 @@ import SettingsTab from "../components/SettingsTab";
 import ExpensesTab from "../components/ExpensesTab";
 import ReportsTab from "../components/ReportsTab";
 import DashboardTab from "../components/DashboardTab";
+import HealthCheckTab from "../components/HealthCheckTab";
 import AICommandBar from "../components/AICommandBar";
 import { KeyNav, StatCard, money, todayISO, addDays, toISODate, LOCATIONS, computeLessonRate } from "../components/ui";
 
@@ -762,6 +763,7 @@ export default function Home() {
             { id: "expenses", label: "Expenses" },
             { id: "reports", label: "Reports" },
             { id: "settings", label: "Settings" },
+            { id: "health", label: "Health Check" },
           ]}
           active={tab}
           onChange={setTab}
@@ -873,6 +875,9 @@ export default function Home() {
         )}
         {tab === "settings" && (
           <SettingsTab settings={businessSettings} onSave={saveBusinessSettings} />
+        )}
+        {tab === "health" && (
+          <HealthCheckTab userEmail={session?.user?.email} />
         )}
       </main>
     </div>
