@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import {
   SectionCard, Button, Field, inputCls, LOCATIONS, todayISO, money, StatusPill,
   endTime, timeRange, SearchableSelect, WEEKDAY_LABELS, toISODate, addDays,
-  weekdayAbbrev, ClashWarning, Modal, computeLessonRate,
+  weekdayAbbrev, ClashWarning, Modal, computeLessonRate, computeTrialFee,
 } from "./ui";
 
 function toISO(d) {
@@ -27,6 +27,7 @@ const blankForm = (students) => ({
   rate: "",
   repeatWeeks: 1,
   notes: "",
+  isTrial: false,
 });
 
 export default function CalendarTab({ appointments, students, studentMap, services, unavailableDates, lessonPlans = [], onUpdateLessonPlanItem, onMarkUnavailable, onUnmarkUnavailable, onAdd, onUpdate, onUpdateSeries, onBulkUpdate, onReschedule, onMarkAbsent, onSetStatus, onRemove }) {
@@ -158,13 +159,14 @@ export default function CalendarTab({ appointments, students, studentMap, servic
       time: form.time,
       duration: Number(form.duration) || 60,
       location: form.location,
-      rate: form.rate === "" ? computeLessonRate(student, Number(form.duration) || 60) : Number(form.rate),
+      rate: form.rate === "" ? (form.isTrial ? computeTrialFee(student, services) : computeLessonRate(student, Number(form.duration) || 60)) : Number(form.rate),
       service_id: svc ? svc.id : null,
       service_code: svc ? svc.code : null,
       status: "scheduled",
       invoiced: false,
       series_id: seriesId,
       notes: form.notes.trim(),
+      is_trial: form.isTrial,
     };
     const startDate = new Date(form.date + "T00:00:00");
     const rows = Array.from({ length: weeks }, (_, i) => {
@@ -190,6 +192,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
       location: a.location,
       rate: String(a.rate),
       notes: a.notes || "",
+      isTrial: !!a.is_trial,
     });
   }
   function cancelEdit() {
@@ -208,6 +211,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
       service_id: svc ? svc.id : null,
       service_code: svc ? svc.code : null,
       notes: editForm.notes.trim(),
+      is_trial: editForm.isTrial,
     };
     if (applyToSeries && seriesIdOfEditing) {
       onUpdateSeries(seriesIdOfEditing, patch);
@@ -364,11 +368,17 @@ export default function CalendarTab({ appointments, students, studentMap, servic
             <Field label="Rate (RM, optional — leave blank to auto-fill)">
               <input
                 type="number"
-                placeholder={String(computeLessonRate(studentMap[form.studentId], Number(form.duration) || 60))}
+                placeholder={String(form.isTrial ? computeTrialFee(studentMap[form.studentId], services) : computeLessonRate(studentMap[form.studentId], Number(form.duration) || 60))}
                 className={inputCls}
                 value={form.rate}
                 onChange={(e) => setForm({ ...form, rate: e.target.value })}
               />
+            </Field>
+            <Field label="Trial lesson?">
+              <label className="flex items-center gap-2 h-[38px]">
+                <input type="checkbox" checked={form.isTrial} onChange={(e) => setForm({ ...form, isTrial: e.target.checked, rate: "" })} />
+                <span className="text-sm text-[#5C564A]">This is a trial — auto-fills to ~¼ of a monthly rate</span>
+              </label>
             </Field>
             <Field label="Repeat weekly, for how many weeks">
               <input
@@ -632,6 +642,12 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                       <Field label="Rate (RM)">
                         <input type="number" className={inputCls} value={editForm.rate} onChange={(e) => setEditForm({ ...editForm, rate: e.target.value })} />
                       </Field>
+                      <Field label="Trial lesson?">
+                        <label className="flex items-center gap-2 h-[38px]">
+                          <input type="checkbox" checked={editForm.isTrial} onChange={(e) => setEditForm({ ...editForm, isTrial: e.target.checked })} />
+                          <span className="text-sm text-[#5C564A]">Trial</span>
+                        </label>
+                      </Field>
                       <Field label="Description / notes">
                         <input className={inputCls} value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} />
                       </Field>
@@ -718,7 +734,10 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                   <div className="flex items-start gap-3">
                     <span style={{ fontFamily: "'IBM Plex Mono', monospace" }} className="text-sm whitespace-nowrap">{timeRange(a.time, a.duration)}</span>
                     <div className="min-w-0">
-                      <div className="text-sm font-medium">{studentMap[a.student_id]?.name || "Unknown student"}</div>
+                      <div className="text-sm font-medium">
+                        {studentMap[a.student_id]?.name || "Unknown student"}
+                        {a.is_trial && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-[#F5EDDD] text-[#8A6D3B] align-middle">Trial</span>}
+                      </div>
                       <div className="text-xs text-[#8A8272]">
                         {a.service_code ? `(${a.service_code}) ` : ""}{a.duration} min · {a.location} · {money(a.rate)}
                       </div>

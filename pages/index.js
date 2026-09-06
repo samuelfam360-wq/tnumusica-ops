@@ -137,6 +137,9 @@ export default function Home() {
     if (!error && newStudent && _scheduleNow) {
       const startDate = nextDateForWeekday(newStudent.lesson_day);
       if (startDate) {
+        if (!newStudent.joined_date) {
+          await supabase.from("students").update({ joined_date: startDate }).eq("id", newStudent.id);
+        }
         const location = LOCATIONS.includes(newStudent.centre) ? newStudent.centre : LOCATIONS[0];
         const weeks = resolveWeekCount(startDate, _scheduleValue, _scheduleUnit);
         const seriesId = weeks > 1 ? newSeriesId() : null;
@@ -196,9 +199,13 @@ export default function Home() {
   // Switching a student to Temporary Stop / Terminated / Graduated cancels
   // their not-yet-completed lessons from the chosen month onward, freeing
   // that slot up — completed lessons (real history) are left untouched.
-  async function changeStudentStatus(studentId, newStatus, stopMonth) {
-    await supabase.from("students").update({ status: newStatus }).eq("id", studentId);
-    if (newStatus !== "active" && stopMonth) {
+  async function changeStudentStatus(studentId, newStatus, stopDate) {
+    const patch = { status: newStatus };
+    if (newStatus !== "active") patch.stopped_date = stopDate || null;
+    if (newStatus === "active") patch.stopped_date = null;
+    await supabase.from("students").update(patch).eq("id", studentId);
+    if (newStatus !== "active" && stopDate) {
+      const stopMonth = stopDate.slice(0, 7);
       const toCancel = appointments
         .filter((a) => a.student_id === studentId && a.status === "scheduled" && a.date.slice(0, 7) >= stopMonth)
         .map((a) => a.id);
@@ -235,7 +242,7 @@ export default function Home() {
       notes: "",
     }));
     await supabase.from("appointments").insert(rows);
-    await supabase.from("students").update({ status: "active" }).eq("id", studentId);
+    await supabase.from("students").update({ status: "active", stopped_date: null, joined_date: startDate }).eq("id", studentId);
     refetchAll();
   }
 
@@ -344,6 +351,23 @@ export default function Home() {
     await supabase.from("invoices").insert({ ...payload, number: nextInvoiceNumber(), paid_date: null });
     refetchAll();
   }
+  // Their first month (joined mid-to-late) or last month (stopped early) can
+  // be a partial month — this works out whether to charge the full monthly
+  // rate or half of it for a given billing period. Any other month is
+  // untouched (always full rate). A trial lesson never factors into this —
+  // joined_date is set from their real recurring schedule, not a trial.
+  function monthlyProrationFactor(student, period) {
+    if (student.joined_date && student.joined_date.slice(0, 7) === period) {
+      const day = Number(student.joined_date.slice(8, 10));
+      return day <= 14 ? 1 : 0.5;
+    }
+    if (student.status !== "active" && student.stopped_date && student.stopped_date.slice(0, 7) === period) {
+      const day = Number(student.stopped_date.slice(8, 10));
+      return day <= 14 ? 0.5 : 1;
+    }
+    return 1;
+  }
+
   async function generateMonthlyInvoice(studentId, period) {
     const student = students.find((s) => s.id === studentId);
     const eligible = appointments.filter(
@@ -353,8 +377,10 @@ export default function Home() {
 
     let lines, total;
     if (student?.rate_type === "month") {
-      const flatRate = Number(student.rate) || 0;
-      lines = [{ description: `Monthly tuition — ${period}`, amount: flatRate }];
+      const factor = monthlyProrationFactor(student, period);
+      const flatRate = (Number(student.rate) || 0) * factor;
+      const label = factor === 1 ? `Monthly tuition — ${period}` : `Monthly tuition (half month) — ${period}`;
+      lines = [{ description: label, amount: flatRate }];
       total = flatRate;
     } else {
       const byDuration = {};
@@ -405,7 +431,9 @@ export default function Home() {
       if (student?.rate_type === "month") {
         if (!monthlyBilled.has(student.id)) {
           monthlyBilled.add(student.id);
-          lines.push({ description: `${student.name} — Monthly tuition (${period})`, amount: Number(student.rate) || 0 });
+          const factor = monthlyProrationFactor(student, period);
+          const label = factor === 1 ? `${student.name} — Monthly tuition (${period})` : `${student.name} — Monthly tuition, half month (${period})`;
+          lines.push({ description: label, amount: (Number(student.rate) || 0) * factor });
         }
       } else {
         const d = a.duration;

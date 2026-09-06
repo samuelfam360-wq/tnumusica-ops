@@ -29,6 +29,8 @@ grant select, insert, update, delete on allowed_users to authenticated;`,
   lesson_duration int,
   rate_type text default 'lesson',
   status text default 'active',
+  joined_date date,
+  stopped_date date,
   created_at timestamptz default now()
 );
 alter table students enable row level security;
@@ -71,6 +73,7 @@ grant select, insert, update, delete on services to authenticated;`,
   series_id uuid,
   notes text default '',
   rescheduled_from uuid references appointments(id) on delete set null,
+  is_trial boolean not null default false,
   created_at timestamptz default now()
 );
 alter table appointments enable row level security;
@@ -211,9 +214,9 @@ grant select, insert, update, delete on lesson_plan_items to authenticated;`,
 // [table, primary select column, extra columns to verify exist, human label]
 const TABLE_CHECKS = [
   ["allowed_users", "email", [], "Allowed users (login access list)"],
-  ["students", "id", ["centre", "lesson_day", "lesson_time", "lesson_duration", "rate_type", "grade", "course", "status"], "Students"],
+  ["students", "id", ["centre", "lesson_day", "lesson_time", "lesson_duration", "rate_type", "grade", "course", "status", "joined_date", "stopped_date"], "Students"],
   ["services", "id", ["course", "grade", "percentage"], "Rates / grade codes"],
-  ["appointments", "id", ["series_id", "notes", "rescheduled_from", "invoiced", "service_code"], "Calendar / appointments"],
+  ["appointments", "id", ["series_id", "notes", "rescheduled_from", "invoiced", "service_code", "is_trial"], "Calendar / appointments"],
   ["invoices", "id", ["billed_to", "lines", "period", "paid_date"], "Invoices"],
   ["materials", "id", [], "Materials"],
   ["material_sales", "id", [], "Material sales"],
@@ -238,6 +241,9 @@ function ALTER_COLUMN_SQL(table, column) {
     "services.course": "text default ''",
     "services.grade": "text default ''",
     "services.percentage": "numeric not null default 100",
+    "students.joined_date": "date",
+    "students.stopped_date": "date",
+    "appointments.is_trial": "boolean not null default false",
     "appointments.series_id": "uuid",
     "appointments.notes": "text default ''",
     "appointments.rescheduled_from": "uuid references appointments(id) on delete set null",

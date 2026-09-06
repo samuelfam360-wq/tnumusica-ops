@@ -29,6 +29,8 @@ create table if not exists students (
   lesson_duration int,
   rate_type text default 'lesson',
   status text default 'active',
+  joined_date date,
+  stopped_date date,
   created_at timestamptz default now()
 );
 alter table students enable row level security;
@@ -77,6 +79,7 @@ create table if not exists appointments (
   series_id uuid,
   notes text default '',
   rescheduled_from uuid references appointments(id) on delete set null,
+  is_trial boolean not null default false,
   created_at timestamptz default now()
 );
 alter table appointments enable row level security;

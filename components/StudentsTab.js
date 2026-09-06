@@ -20,13 +20,13 @@ export default function StudentsTab({
   const [csvPreview, setCsvPreview] = useState(null);
   const [csvError, setCsvError] = useState("");
   const [statusChangeFor, setStatusChangeFor] = useState(null); // { studentId, newStatus }
-  const [stopMonth, setStopMonth] = useState(todayISO().slice(0, 7));
+  const [stopDate, setStopDate] = useState(todayISO());
   const [resumeFor, setResumeFor] = useState(null); // studentId
   const [resumeForm, setResumeForm] = useState({ date: todayISO(), value: "3", unit: "months" });
   const [form, setForm] = useState({
     name: "", rate: "", rateType: "lesson", age: "", gradeChoice: "", gradeOther: "", courseChoice: "", courseOther: "", centre: "",
     lessonDay: "", lessonTime: "", lessonDuration: "", lessonServiceId: "", scheduleValue: "3", scheduleUnit: "months",
-    notes: "",
+    joinedDate: "", notes: "",
   });
   const [selectedIds, setSelectedIds] = useState({});
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
@@ -71,6 +71,7 @@ export default function StudentsTab({
       lesson_day: form.lessonDay,
       lesson_time: form.lessonTime,
       lesson_duration: form.lessonDuration === "" ? null : Number(form.lessonDuration),
+      joined_date: form.joinedDate || null,
       notes: form.notes.trim(),
       // Generation-only — used once to create the recurring lessons, not stored on the student row.
       _scheduleNow: !!(form.lessonDay && form.lessonTime),
@@ -82,7 +83,7 @@ export default function StudentsTab({
     setForm({
       name: "", rate: "", rateType: "lesson", age: "", gradeChoice: "", gradeOther: "", courseChoice: "", courseOther: "", centre: "",
       lessonDay: "", lessonTime: "", lessonDuration: "", lessonServiceId: "", scheduleValue: "3", scheduleUnit: "months",
-      notes: "",
+      joinedDate: "", notes: "",
     });
   }
 
@@ -174,12 +175,12 @@ export default function StudentsTab({
       onUpdate(studentId, { status: "active" });
       return;
     }
-    setStopMonth(todayISO().slice(0, 7));
+    setStopDate(todayISO());
     setStatusChangeFor({ studentId, newStatus });
   }
   function confirmStatusChange() {
     if (!statusChangeFor) return;
-    onChangeStudentStatus(statusChangeFor.studentId, statusChangeFor.newStatus, stopMonth);
+    onChangeStudentStatus(statusChangeFor.studentId, statusChangeFor.newStatus, stopDate);
     setStatusChangeFor(null);
   }
 
@@ -324,6 +325,9 @@ export default function StudentsTab({
             </Field>
             <Field label={`Default rate (${rateUnitLabel(form.rateType)})`}>
               <input type="number" className={inputCls} value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value })} />
+            </Field>
+            <Field label="Joined on (optional — leave blank to use their schedule's start date)">
+              <input type="date" className={inputCls} value={form.joinedDate} onChange={(e) => setForm({ ...form, joinedDate: e.target.value })} />
             </Field>
             <div className="col-span-2 sm:col-span-3">
               <Field label="Notes">
@@ -615,6 +619,14 @@ export default function StudentsTab({
                             {STUDENT_STATUSES.map((st) => <option key={st.value} value={st.value}>{st.label}</option>)}
                           </select>
                         </Field>
+                        <Field label="Joined on">
+                          <DeferredInput type="date" className={inputCls} value={s.joined_date || ""} onCommit={(v) => onUpdate(s.id, { joined_date: v || null })} />
+                        </Field>
+                        {(s.status || "active") !== "active" && (
+                          <Field label="Stopped on">
+                            <DeferredInput type="date" className={inputCls} value={s.stopped_date || ""} onCommit={(v) => onUpdate(s.id, { stopped_date: v || null })} />
+                          </Field>
+                        )}
                         <Field label="Lesson day">
                           <select className={inputCls} value={s.lesson_day || ""} onChange={(e) => onUpdate(s.id, { lesson_day: e.target.value })}>
                             <option value="">—</option>
@@ -648,10 +660,11 @@ export default function StudentsTab({
                             Marking {s.name} as {studentStatusLabel(statusChangeFor.newStatus)}
                           </div>
                           <p className="text-xs text-[#5C564A]">
-                            Stopping from which month? Every not-yet-completed lesson from that month onward will be cancelled, freeing up that slot. Anything already marked completed stays untouched.
+                            Stopping from which date? Every not-yet-completed lesson from that month onward will be cancelled, freeing up that slot. Anything already marked completed stays untouched.
+                            If they're on Monthly billing, stopping in the first half of a month bills half that month; the second half bills the full month.
                           </p>
                           <Field label="Stopping from">
-                            <input type="month" className={inputCls} value={stopMonth} onChange={(e) => setStopMonth(e.target.value)} />
+                            <input type="date" className={inputCls} value={stopDate} onChange={(e) => setStopDate(e.target.value)} />
                           </Field>
                           <div className="flex gap-2">
                             <Button onClick={confirmStatusChange}>Confirm</Button>
