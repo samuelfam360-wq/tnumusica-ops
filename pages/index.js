@@ -193,6 +193,7 @@ export default function Home() {
       notes: "",
     }));
     await supabase.from("appointments").insert(rows);
+    await maybeSetJoinedDate(studentId, rows);
     refetchAll();
   }
 
@@ -286,8 +287,25 @@ export default function Home() {
   }
 
   // ---- Appointments ----
+  // Whenever a student's first-ever non-trial lesson gets created — through
+  // any flow (Add to schedule, Extend recurring lessons, auto-generation on
+  // student creation) — this is what actually starts their billing clock.
+  // A trial never counts, and this only fires once (if joined_date is
+  // already set, it's left alone).
+  async function maybeSetJoinedDate(studentId, rows) {
+    const student = students.find((s) => s.id === studentId);
+    if (!student || student.joined_date) return;
+    const list = Array.isArray(rows) ? rows : [rows];
+    const realDates = list.filter((r) => !r.is_trial).map((r) => r.date).filter(Boolean).sort();
+    if (realDates.length > 0) {
+      await supabase.from("students").update({ joined_date: realDates[0] }).eq("id", studentId);
+    }
+  }
+
   async function addAppointment(payload) {
     await supabase.from("appointments").insert(payload);
+    const list = Array.isArray(payload) ? payload : [payload];
+    if (list[0]?.student_id) await maybeSetJoinedDate(list[0].student_id, list);
     refetchAll();
   }
   async function setAppointmentStatus(id, status) {
@@ -296,6 +314,10 @@ export default function Home() {
   }
   async function updateAppointment(id, patch) {
     await supabase.from("appointments").update(patch).eq("id", id);
+    if (patch.is_trial === false) {
+      const appt = appointments.find((a) => a.id === id);
+      if (appt) await maybeSetJoinedDate(appt.student_id, { ...appt, ...patch });
+    }
     refetchAll();
   }
   async function updateAppointmentSeries(seriesId, patch) {
