@@ -136,6 +136,7 @@ create table if not exists material_sales (
   unit_price numeric not null default 0,
   total numeric not null default 0,
   date date not null,
+  invoiced boolean not null default false,
   created_at timestamptz default now()
 );
 

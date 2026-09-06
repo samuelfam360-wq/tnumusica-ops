@@ -1,9 +1,10 @@
 import { useState, useMemo } from "react";
 import { SectionCard, Button, Field, inputCls, money, todayISO, SearchableSelect, SearchBox } from "./ui";
 
-export default function MaterialsTab({ materials, sales, students, studentMap, onAddMaterial, onRemoveMaterial, onAddSale, onRemoveSale }) {
+export default function MaterialsTab({ materials, sales, students, studentMap, onAddMaterial, onRemoveMaterial, onAddSale, onRemoveSale, onGenerateSaleInvoice, onGenerateStudentInvoice }) {
   const [salesSearch, setSalesSearch] = useState("");
   const [productsSearch, setProductsSearch] = useState("");
+  const [invoiceStudentId, setInvoiceStudentId] = useState("");
   const [form, setForm] = useState({
     name: "",
     notes: "",
@@ -82,6 +83,16 @@ export default function MaterialsTab({ materials, sales, students, studentMap, o
     materials.forEach((x) => (m[x.id] = x));
     return m;
   }, [materials]);
+
+  const studentsWithPendingSales = useMemo(() => {
+    const byStudent = {};
+    sales.filter((s) => s.student_id && !s.invoiced).forEach((s) => {
+      if (!byStudent[s.student_id]) byStudent[s.student_id] = { count: 0, total: 0 };
+      byStudent[s.student_id].count += 1;
+      byStudent[s.student_id].total += Number(s.total) || 0;
+    });
+    return Object.entries(byStudent).map(([id, info]) => ({ id, name: studentMap[id]?.name || "Unknown", ...info }));
+  }, [sales, studentMap]);
 
   return (
     <div className="space-y-4">
@@ -200,6 +211,27 @@ export default function MaterialsTab({ materials, sales, students, studentMap, o
         })()}
       </SectionCard>
 
+      {studentsWithPendingSales.length > 0 && (
+        <SectionCard title="Generate invoice for a student's purchases">
+          <div className="flex flex-wrap items-end gap-3">
+            <Field label="Student with un-invoiced purchases">
+              <SearchableSelect
+                options={studentsWithPendingSales.map((s) => ({ value: s.id, label: `${s.name} — ${s.count} item(s), ${money(s.total)}` }))}
+                value={invoiceStudentId}
+                onChange={setInvoiceStudentId}
+                placeholder="Search student…"
+              />
+            </Field>
+            <Button
+              disabled={!invoiceStudentId}
+              onClick={() => { onGenerateStudentInvoice(invoiceStudentId); setInvoiceStudentId(""); }}
+            >
+              Generate invoice
+            </Button>
+          </div>
+        </SectionCard>
+      )}
+
       <SectionCard
         title={`Sales log (${sales.length})`}
         action={<SearchBox value={salesSearch} onChange={setSalesSearch} placeholder="Search by product or student…" />}
@@ -220,6 +252,16 @@ export default function MaterialsTab({ materials, sales, students, studentMap, o
                 </div>
                 <div className="flex items-center gap-3">
                   <span style={{ fontFamily: "'IBM Plex Mono', monospace" }} className="text-sm">{money(s.total)}</span>
+                  {s.invoiced ? (
+                    <span className="text-[11px] px-2 py-0.5 rounded-full text-[#4C5A43] bg-[#E7EDE1]">Invoiced</span>
+                  ) : (
+                    <button
+                      onClick={() => onGenerateSaleInvoice(s, materialMap[s.material_id]?.name || "Item")}
+                      className="text-xs text-[#8A6D3B] hover:underline"
+                    >
+                      Invoice
+                    </button>
+                  )}
                   <button onClick={() => onRemoveSale(s.id)} className="text-xs text-[#8A8272] hover:underline">Remove</button>
                 </div>
               </div>

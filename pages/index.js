@@ -467,6 +467,49 @@ export default function Home() {
     refetchAll();
   }
 
+  // Turns a single material sale into a real invoice — reuses the same
+  // invoices table as lesson billing, so it gets the same Mark Paid / PDF
+  // download for free.
+  async function generateMaterialSaleInvoice(sale, materialName) {
+    await supabase.from("invoices").insert({
+      number: nextInvoiceNumber(),
+      student_id: sale.student_id || null,
+      billed_to: sale.student_id ? null : "Bulk sale",
+      description: `${materialName} — ${sale.quantity} × ${money(sale.unit_price)}`,
+      total: Number(sale.total) || 0,
+      date: sale.date,
+      status: "unpaid",
+      paid_date: null,
+    });
+    await supabase.from("material_sales").update({ invoiced: true }).eq("id", sale.id);
+    refetchAll();
+  }
+
+  // Combines every un-invoiced sale for one student into a single invoice —
+  // for when they've bought a few things across different visits.
+  async function generateStudentMaterialsInvoice(studentId) {
+    const eligible = materialSales.filter((s) => s.student_id === studentId && !s.invoiced);
+    if (eligible.length === 0) return;
+    const materialMap = {};
+    materials.forEach((m) => (materialMap[m.id] = m));
+    const lines = eligible.map((s) => ({
+      description: `${materialMap[s.material_id]?.name || "Item"} — ${s.quantity} × ${money(s.unit_price)} (${s.date})`,
+      amount: Number(s.total) || 0,
+    }));
+    const total = lines.reduce((sum, l) => sum + l.amount, 0);
+    await supabase.from("invoices").insert({
+      number: nextInvoiceNumber(),
+      student_id: studentId,
+      lines,
+      total,
+      date: todayISO(),
+      status: "unpaid",
+      paid_date: null,
+    });
+    await supabase.from("material_sales").update({ invoiced: true }).in("id", eligible.map((s) => s.id));
+    refetchAll();
+  }
+
   // ---- Teaching plan (curriculum planning) ----
   async function addLessonPlanItem(studentId, { topic, remarks, lessonDate }) {
     const existing = lessonPlans.filter((p) => p.student_id === studentId);
@@ -886,6 +929,8 @@ export default function Home() {
             onRemoveMaterial={removeMaterial}
             onAddSale={addMaterialSale}
             onRemoveSale={removeMaterialSale}
+            onGenerateSaleInvoice={generateMaterialSaleInvoice}
+            onGenerateStudentInvoice={generateStudentMaterialsInvoice}
           />
         )}
         {tab === "income" && (
