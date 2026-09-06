@@ -1,6 +1,6 @@
 {
-  "name": "tnumusica-ops",
-  "version": "1.0.0",
+  "name": "playstudio-manager",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -9,14 +9,11 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
-    "jspdf": "^2.5.2",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^2.5.1",
     "next": "14.2.5",
+    "papaparse": "^5.4.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
-  },
-  "devDependencies": {
-    "autoprefixer": "^10.4.19",
-    "postcss": "^8.4.39",
-    "tailwindcss": "^3.4.6"
   }
 }
