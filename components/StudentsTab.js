@@ -43,11 +43,12 @@ export default function StudentsTab({
   const [reschedApptId, setReschedApptId] = useState(null);
   const [reschedApptForm, setReschedApptForm] = useState(null);
 
-  function pickStudentService(serviceId) {
-    const svc = services.find((sv) => sv.id === serviceId);
+  function pickGradeForCourse(gradeValue) {
+    const svc = services.find((sv) => sv.course === form.courseChoice && sv.grade === gradeValue);
     setForm({
       ...form,
-      lessonServiceId: serviceId,
+      gradeChoice: gradeValue,
+      lessonServiceId: svc ? svc.id : "",
       lessonDuration: svc ? String(svc.duration) : form.lessonDuration,
       rate: svc ? String(svc.rate) : form.rate,
     });
@@ -246,7 +247,11 @@ export default function StudentsTab({
   }
 
   const uniqueCourses = [...new Set(students.map((s) => s.course).filter(Boolean))].sort();
-  const rateCourseOptions = [...new Set(services.map((sv) => sv.label).filter(Boolean))];
+  const rateCourseOptions = [...new Set(services.map((sv) => sv.course).filter(Boolean))];
+  const ratesLinkedForForm = !!form.courseChoice && form.courseChoice !== "Other" && rateCourseOptions.includes(form.courseChoice);
+  const gradeOptionsForForm = ratesLinkedForForm
+    ? [...new Set(services.filter((sv) => sv.course === form.courseChoice).map((sv) => sv.grade).filter(Boolean))]
+    : GRADES;
   const uniqueGrades = [...new Set(students.map((s) => s.grade).filter(Boolean))].sort();
 
   const filtered = students
@@ -272,19 +277,12 @@ export default function StudentsTab({
             <Field label="Age">
               <input type="number" className={inputCls} value={form.age} onChange={(e) => setForm({ ...form, age: e.target.value })} />
             </Field>
-            <Field label="Grade">
-              <select className={inputCls} value={form.gradeChoice} onChange={(e) => setForm({ ...form, gradeChoice: e.target.value })}>
-                <option value="">—</option>
-                {GRADES.map((g) => <option key={g}>{g}</option>)}
-              </select>
-            </Field>
-            {form.gradeChoice === "Other" && (
-              <Field label="Specify grade">
-                <input className={inputCls} value={form.gradeOther} onChange={(e) => setForm({ ...form, gradeOther: e.target.value })} />
-              </Field>
-            )}
             <Field label="Course">
-              <select className={inputCls} value={form.courseChoice} onChange={(e) => setForm({ ...form, courseChoice: e.target.value })}>
+              <select
+                className={inputCls}
+                value={form.courseChoice}
+                onChange={(e) => setForm({ ...form, courseChoice: e.target.value, gradeChoice: "", lessonServiceId: "" })}
+              >
                 <option value="">—</option>
                 {rateCourseOptions.map((c) => <option key={c}>{c}</option>)}
                 <option value="Other">Other</option>
@@ -296,6 +294,21 @@ export default function StudentsTab({
             {form.courseChoice === "Other" && (
               <Field label="Specify course">
                 <input className={inputCls} value={form.courseOther} onChange={(e) => setForm({ ...form, courseOther: e.target.value })} />
+              </Field>
+            )}
+            <Field label="Grade">
+              <select className={inputCls} value={form.gradeChoice} onChange={(e) => pickGradeForCourse(e.target.value)}>
+                <option value="">—</option>
+                {gradeOptionsForForm.map((g) => <option key={g}>{g}</option>)}
+                <option value="Other">Other</option>
+              </select>
+              {ratesLinkedForForm && form.gradeChoice && form.gradeChoice !== "Other" && (
+                <p className="text-xs text-[#8A8272] mt-1">Duration and rate below auto-filled from Rates — still editable.</p>
+              )}
+            </Field>
+            {form.gradeChoice === "Other" && (
+              <Field label="Specify grade">
+                <input className={inputCls} value={form.gradeOther} onChange={(e) => setForm({ ...form, gradeOther: e.target.value })} />
               </Field>
             )}
             <Field label="Centre">
@@ -323,7 +336,7 @@ export default function StudentsTab({
             <div className="text-xs uppercase tracking-wide text-[#8A8272] mb-2">
               Weekly lesson time — fill this in and lessons are added to the calendar automatically, no need to add them separately after
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 items-end">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
               <Field label="Permanent day">
                 <select className={inputCls} value={form.lessonDay} onChange={(e) => setForm({ ...form, lessonDay: e.target.value })}>
                   <option value="">—</option>
@@ -333,14 +346,6 @@ export default function StudentsTab({
               <Field label={`Time${form.lessonTime && form.lessonDuration ? ` (ends ${endTime(form.lessonTime, form.lessonDuration)})` : ""}`}>
                 <input type="time" className={inputCls} value={form.lessonTime} onChange={(e) => setForm({ ...form, lessonTime: e.target.value })} />
               </Field>
-              {services.length > 0 && (
-                <Field label="Service / grade code">
-                  <select className={inputCls} value={form.lessonServiceId} onChange={(e) => pickStudentService(e.target.value)}>
-                    <option value="">Custom</option>
-                    {services.map((s) => <option key={s.id} value={s.id}>{s.code} — {s.label} ({s.duration} min)</option>)}
-                  </select>
-                </Field>
-              )}
               <Field label="Duration (min)">
                 <input type="number" className={inputCls} placeholder="30" value={form.lessonDuration} onChange={(e) => setForm({ ...form, lessonDuration: e.target.value, lessonServiceId: "" })} />
               </Field>
@@ -565,19 +570,8 @@ export default function StudentsTab({
                         <Field label="Age">
                           <DeferredInput type="number" className={inputCls} value={s.age ?? ""} onCommit={(v) => onUpdate(s.id, { age: v === "" ? null : Number(v) })} />
                         </Field>
-                        <Field label="Grade">
-                          <select className={inputCls} value={GRADES.includes(s.grade) ? s.grade : (s.grade ? "Other" : "")} onChange={(e) => onUpdate(s.id, { grade: e.target.value === "Other" ? "Other" : e.target.value })}>
-                            <option value="">—</option>
-                            {GRADES.map((g) => <option key={g}>{g}</option>)}
-                          </select>
-                        </Field>
-                        {(s.grade === "Other" || (s.grade && !GRADES.includes(s.grade))) && (
-                          <Field label="Specify grade">
-                            <DeferredInput className={inputCls} value={s.grade === "Other" ? "" : s.grade} onCommit={(v) => onUpdate(s.id, { grade: v })} />
-                          </Field>
-                        )}
                         <Field label="Course">
-                          <select className={inputCls} value={rateCourseOptions.includes(s.course) ? s.course : (s.course ? "Other" : "")} onChange={(e) => onUpdate(s.id, { course: e.target.value === "Other" ? "Other" : e.target.value })}>
+                          <select className={inputCls} value={rateCourseOptions.includes(s.course) ? s.course : (s.course ? "Other" : "")} onChange={(e) => onUpdate(s.id, { course: e.target.value === "Other" ? "Other" : e.target.value, grade: "" })}>
                             <option value="">—</option>
                             {rateCourseOptions.map((c) => <option key={c}>{c}</option>)}
                             <option value="Other">Other</option>
@@ -588,6 +582,28 @@ export default function StudentsTab({
                             <DeferredInput className={inputCls} value={s.course === "Other" ? "" : s.course} onCommit={(v) => onUpdate(s.id, { course: v })} />
                           </Field>
                         )}
+                        {(() => {
+                          const linked = s.course && s.course !== "Other" && rateCourseOptions.includes(s.course);
+                          const gradeOpts = linked
+                            ? [...new Set(services.filter((sv) => sv.course === s.course).map((sv) => sv.grade).filter(Boolean))]
+                            : GRADES;
+                          return (
+                            <>
+                              <Field label="Grade">
+                                <select className={inputCls} value={gradeOpts.includes(s.grade) ? s.grade : (s.grade ? "Other" : "")} onChange={(e) => onUpdate(s.id, { grade: e.target.value === "Other" ? "Other" : e.target.value })}>
+                                  <option value="">—</option>
+                                  {gradeOpts.map((g) => <option key={g}>{g}</option>)}
+                                  <option value="Other">Other</option>
+                                </select>
+                              </Field>
+                              {(s.grade === "Other" || (s.grade && !gradeOpts.includes(s.grade))) && (
+                                <Field label="Specify grade">
+                                  <DeferredInput className={inputCls} value={s.grade === "Other" ? "" : s.grade} onCommit={(v) => onUpdate(s.id, { grade: v })} />
+                                </Field>
+                              )}
+                            </>
+                          );
+                        })()}
                         <Field label="Centre">
                           <select className={inputCls} value={s.centre || ""} onChange={(e) => onUpdate(s.id, { centre: e.target.value })}>
                             <option value="">—</option>

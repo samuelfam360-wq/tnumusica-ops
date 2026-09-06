@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import { SectionCard, money, todayISO } from "./ui";
+import { SectionCard, money, todayISO, percentageForCourse } from "./ui";
 
-export default function IncomeTab({ appointments, invoices, studentMap, materials = [], materialSales = [], expenses = [] }) {
+export default function IncomeTab({ appointments, invoices, studentMap, materials = [], materialSales = [], expenses = [], services = [] }) {
   const months = useMemo(() => {
     const set = new Set();
     appointments.forEach((a) => a.status === "completed" && set.add(a.date.slice(0, 7)));
@@ -62,6 +62,28 @@ export default function IncomeTab({ appointments, invoices, studentMap, material
   }, [byMonth]);
 
   const maxFlow = Math.max(1, ...cashFlow.map((r) => Math.max(r.moneyIn, r.moneyOut)));
+
+  const splitByCourse = useMemo(() => {
+    const byCourse = {};
+    appointments
+      .filter((a) => a.status === "completed")
+      .forEach((a) => {
+        const course = studentMap[a.student_id]?.course || "No course set";
+        if (!byCourse[course]) byCourse[course] = 0;
+        byCourse[course] += Number(a.rate) || 0;
+      });
+    return Object.entries(byCourse)
+      .map(([course, total]) => {
+        const pct = course === "No course set" ? 100 : percentageForCourse(course, services);
+        return { course, total, pct, yourShare: (total * pct) / 100, schoolShare: total - (total * pct) / 100 };
+      })
+      .sort((a, b) => b.total - a.total);
+  }, [appointments, studentMap, services]);
+
+  const splitTotals = splitByCourse.reduce(
+    (acc, r) => ({ total: acc.total + r.total, yourShare: acc.yourShare + r.yourShare, schoolShare: acc.schoolShare + r.schoolShare }),
+    { total: 0, yourShare: 0, schoolShare: 0 }
+  );
 
   const byStudent = useMemo(() => {
     const map = {};
@@ -158,6 +180,47 @@ export default function IncomeTab({ appointments, invoices, studentMap, material
               ))}
             </tbody>
           </table>
+        )}
+      </SectionCard>
+
+      <SectionCard title="Revenue split with the school, by course">
+        <p className="text-xs text-[#8A8272] mb-3">
+          Based on completed lessons only — invoiced bundles and materials income aren't split by course here, since one invoice can cover several courses at once.
+        </p>
+        {splitByCourse.length === 0 ? (
+          <p className="text-sm text-[#8A8272]">No completed lessons yet.</p>
+        ) : (
+          <>
+            <table className="w-full text-sm" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+              <thead>
+                <tr className="text-left text-[#8A8272] text-xs uppercase" style={{ fontFamily: "'Inter', sans-serif" }}>
+                  <th className="py-1.5">Course</th>
+                  <th className="py-1.5">Total</th>
+                  <th className="py-1.5">Your %</th>
+                  <th className="py-1.5">Your share</th>
+                  <th className="py-1.5">School's share</th>
+                </tr>
+              </thead>
+              <tbody>
+                {splitByCourse.map((r) => (
+                  <tr key={r.course} className="border-t border-[#EDE7DB]">
+                    <td className="py-1.5" style={{ fontFamily: "'Inter', sans-serif" }}>{r.course}</td>
+                    <td className="py-1.5">{money(r.total)}</td>
+                    <td className="py-1.5">{r.pct}%</td>
+                    <td className="py-1.5 text-[#4C5A43]">{money(r.yourShare)}</td>
+                    <td className="py-1.5 text-[#6B2C3E]">{money(r.schoolShare)}</td>
+                  </tr>
+                ))}
+                <tr className="border-t border-[#EDE7DB] font-medium">
+                  <td className="py-1.5" style={{ fontFamily: "'Inter', sans-serif" }}>Total</td>
+                  <td className="py-1.5">{money(splitTotals.total)}</td>
+                  <td className="py-1.5"></td>
+                  <td className="py-1.5 text-[#4C5A43]">{money(splitTotals.yourShare)}</td>
+                  <td className="py-1.5 text-[#6B2C3E]">{money(splitTotals.schoolShare)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </>
         )}
       </SectionCard>
 

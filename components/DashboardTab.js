@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
-import { SectionCard, StatCard, Button, money, todayISO } from "./ui";
+import { SectionCard, StatCard, Button, money, todayISO, percentageForCourse } from "./ui";
 
-export default function DashboardTab({ students, appointments, invoices, materials, materialSales, expenses, studentMap }) {
+export default function DashboardTab({ students, appointments, invoices, materials, materialSales, expenses, studentMap, services = [] }) {
   const [viewMonth, setViewMonth] = useState(() => {
     const t = new Date();
     return { year: t.getFullYear(), month: t.getMonth() };
@@ -27,6 +27,12 @@ export default function DashboardTab({ students, appointments, invoices, materia
     const cancelled = monthAppts.filter((a) => a.status === "cancelled");
 
     const lessonIncome = completed.reduce((sum, a) => sum + (Number(a.rate) || 0), 0);
+    const yourShare = completed.reduce((sum, a) => {
+      const course = studentMap[a.student_id]?.course;
+      const pct = course ? percentageForCourse(course, services) : 100;
+      return sum + ((Number(a.rate) || 0) * pct) / 100;
+    }, 0);
+    const schoolShare = lessonIncome - yourShare;
     const invoiceIncome = invoices
       .filter((i) => i.status === "paid" && (i.paid_date || i.date).slice(0, 7) === period)
       .reduce((sum, i) => sum + (Number(i.total) || 0), 0);
@@ -56,10 +62,11 @@ export default function DashboardTab({ students, appointments, invoices, materia
 
     return {
       lessonIncome, invoiceIncome, materialsProfit, totalExpenses, totalIncome, netProfit,
+      yourShare, schoolShare,
       completedCount: completed.length, absentCount: absent.length, cancelledCount: cancelled.length,
       byCentre: Object.entries(byCentre).sort((a, b) => b[1] - a[1]),
     };
-  }, [appointments, invoices, materials, materialSales, expenses, studentMap, period]);
+  }, [appointments, invoices, materials, materialSales, expenses, studentMap, services, period]);
 
   const now = useMemo(() => {
     const unpaidTotal = invoices.filter((i) => i.status === "unpaid").reduce((sum, i) => sum + Number(i.total), 0);
@@ -95,6 +102,10 @@ export default function DashboardTab({ students, appointments, invoices, materia
           <StatCard label="Invoice income" value={money(stats.invoiceIncome)} />
           <StatCard label="Materials profit" value={money(stats.materialsProfit)} />
           <StatCard label="Absent / cancelled" value={`${stats.absentCount} / ${stats.cancelledCount}`} />
+        </div>
+        <div className="grid grid-cols-2 gap-3 mt-3">
+          <StatCard label="Your share (of lesson income)" value={money(stats.yourShare)} accent="#4C5A43" />
+          <StatCard label="School's share" value={money(stats.schoolShare)} accent="#6B2C3E" />
         </div>
       </SectionCard>
 

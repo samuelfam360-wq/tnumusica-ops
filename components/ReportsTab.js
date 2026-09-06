@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { jsPDF } from "jspdf";
-import { SectionCard, Button, Field, inputCls, money, todayISO, toISODate } from "./ui";
+import { SectionCard, Button, Field, inputCls, money, todayISO, toISODate, percentageForCourse } from "./ui";
 
 function firstOfThisMonth() {
   return todayISO().slice(0, 7) + "-01";
@@ -19,10 +19,10 @@ function firstOfThisYear() {
   return todayISO().slice(0, 4) + "-01-01";
 }
 
-export default function ReportsTab({ students, appointments, invoices, materials, materialSales, expenses, businessSettings, studentMap }) {
+export default function ReportsTab({ students, appointments, invoices, materials, materialSales, expenses, businessSettings, studentMap, services = [] }) {
   const [range, setRange] = useState({ start: firstOfThisMonth(), end: todayISO() });
   const [sections, setSections] = useState({
-    income: true, expenses: true, schedule: true, invoices: true, materials: false, roster: false,
+    income: true, split: true, expenses: true, schedule: true, invoices: true, materials: false, roster: false,
   });
   const [generating, setGenerating] = useState(false);
 
@@ -118,6 +118,34 @@ export default function ReportsTab({ students, appointments, invoices, materials
         row(["Invoice income (paid)", money(invoiceIncome)], [340, 150]);
         row(["Materials profit", money(materialsProfit)], [340, 150]);
         row(["Total income", money(total)], [340, 150], true);
+        y += 10;
+      }
+
+      // ---- Revenue split with the school, by course ----
+      if (sections.split) {
+        sectionTitle("Revenue Split by Course");
+        const byCourse = {};
+        appointments
+          .filter((a) => a.status === "completed" && inRange(a.date))
+          .forEach((a) => {
+            const course = studentMap[a.student_id]?.course || "No course set";
+            byCourse[course] = (byCourse[course] || 0) + (Number(a.rate) || 0);
+          });
+        const courseEntries = Object.entries(byCourse);
+        if (courseEntries.length === 0) {
+          row(["No completed lessons in this range."], [500]);
+        } else {
+          row(["Course", "Total", "Your %", "Your share", "School's share"], [140, 90, 60, 100, 100], true);
+          let yourTotal = 0, schoolTotal = 0, grand = 0;
+          courseEntries.forEach(([course, total]) => {
+            const pct = course === "No course set" ? 100 : percentageForCourse(course, services);
+            const yourShare = (total * pct) / 100;
+            const schoolShare = total - yourShare;
+            yourTotal += yourShare; schoolTotal += schoolShare; grand += total;
+            row([course, money(total), `${pct}%`, money(yourShare), money(schoolShare)], [140, 90, 60, 100, 100]);
+          });
+          row(["Total", money(grand), "", money(yourTotal), money(schoolTotal)], [140, 90, 60, 100, 100], true);
+        }
         y += 10;
       }
 
@@ -246,6 +274,7 @@ export default function ReportsTab({ students, appointments, invoices, materials
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {[
                 ["income", "Income summary"],
+                ["split", "Revenue split by course"],
                 ["expenses", "Expenses by category"],
                 ["schedule", "Schedule / attendance log"],
                 ["invoices", "Outstanding invoices"],

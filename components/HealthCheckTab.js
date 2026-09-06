@@ -44,6 +44,9 @@ grant select, insert, update, delete on students to authenticated;`,
   label text not null,
   duration int not null,
   rate numeric not null default 0,
+  course text default '',
+  grade text default '',
+  percentage numeric not null default 100,
   created_at timestamptz default now()
 );
 alter table services enable row level security;
@@ -209,7 +212,7 @@ grant select, insert, update, delete on lesson_plan_items to authenticated;`,
 const TABLE_CHECKS = [
   ["allowed_users", "email", [], "Allowed users (login access list)"],
   ["students", "id", ["centre", "lesson_day", "lesson_time", "lesson_duration", "rate_type", "grade", "course", "status"], "Students"],
-  ["services", "id", [], "Rates / grade codes"],
+  ["services", "id", ["course", "grade", "percentage"], "Rates / grade codes"],
   ["appointments", "id", ["series_id", "notes", "rescheduled_from", "invoiced", "service_code"], "Calendar / appointments"],
   ["invoices", "id", ["billed_to", "lines", "period", "paid_date"], "Invoices"],
   ["materials", "id", [], "Materials"],
@@ -232,6 +235,9 @@ function ALTER_COLUMN_SQL(table, column) {
     "students.grade": "text default ''",
     "students.course": "text default ''",
     "students.status": "text default 'active'",
+    "services.course": "text default ''",
+    "services.grade": "text default ''",
+    "services.percentage": "numeric not null default 100",
     "appointments.series_id": "uuid",
     "appointments.notes": "text default ''",
     "appointments.rescheduled_from": "uuid references appointments(id) on delete set null",

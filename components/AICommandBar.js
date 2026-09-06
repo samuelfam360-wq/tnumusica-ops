@@ -25,7 +25,7 @@ export default function AICommandBar({ students, appointments, invoices, service
           name: s.name, rate: s.rate, age: s.age, grade: s.grade, course: s.course,
           centre: s.centre, lessonDay: s.lesson_day, lessonTime: s.lesson_time,
         })),
-        rateCodes: services.map((sv) => ({ code: sv.code, label: sv.label, duration: sv.duration, rate: sv.rate })),
+        rateCodes: services.map((sv) => ({ course: sv.course, grade: sv.grade, duration: sv.duration, rate: sv.rate, yourPercentage: sv.percentage })),
         upcomingAppointments: appointments
           .filter((a) => a.date >= todayISO() && a.status !== "cancelled" && a.status !== "rescheduled")
           .map((a) => ({ student: nameOf(a.student_id), date: a.date, time: a.time, duration: a.duration, status: a.status })),

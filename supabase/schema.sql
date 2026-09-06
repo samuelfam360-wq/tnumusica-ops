@@ -45,6 +45,9 @@ create table if not exists services (
   label text not null,
   duration int not null,
   rate numeric not null default 0,
+  course text default '',
+  grade text default '',
+  percentage numeric not null default 100,
   created_at timestamptz default now()
 );
 alter table services enable row level security;
@@ -53,6 +56,10 @@ create policy "allowed users full access" on services for all
   using (exists (select 1 from allowed_users au where au.email = auth.email()))
   with check (exists (select 1 from allowed_users au where au.email = auth.email()));
 grant select, insert, update, delete on services to authenticated;
+-- One-time carry-over: old rows had no Grade yet — start them off with
+-- their existing Label, which was the closest equivalent. Safe to re-run;
+-- only touches rows that still have no Grade set.
+update services set grade = label where (grade = '' or grade is null) and label is not null;
 
 -- ---------- appointments ----------
 create table if not exists appointments (

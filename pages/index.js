@@ -867,6 +867,7 @@ export default function Home() {
             materialSales={materialSales}
             expenses={expenses}
             studentMap={studentMap}
+            services={services}
           />
         )}
         {tab === "calendar" && (
@@ -934,7 +935,7 @@ export default function Home() {
           />
         )}
         {tab === "income" && (
-          <IncomeTab appointments={appointments} invoices={invoices} studentMap={studentMap} materials={materials} materialSales={materialSales} expenses={expenses} />
+          <IncomeTab appointments={appointments} invoices={invoices} studentMap={studentMap} materials={materials} materialSales={materialSales} expenses={expenses} services={services} />
         )}
         {tab === "invoices" && (
           <InvoicesTab
@@ -964,6 +965,7 @@ export default function Home() {
             expenses={expenses}
             businessSettings={businessSettings}
             studentMap={studentMap}
+            services={services}
           />
         )}
         {tab === "settings" && (

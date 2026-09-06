@@ -206,6 +206,16 @@ export function parseCSV(text) {
   return rows;
 }
 
+// Looks up what percentage of a course's revenue the teacher keeps (the
+// rest goes to the school). Defaults to 100% for a course with no split
+// configured yet in Rates, or no course at all — so nothing changes
+// silently until a split is actually set up.
+export function percentageForCourse(course, services) {
+  if (!course) return 100;
+  const match = (services || []).find((sv) => sv.course === course && sv.percentage != null);
+  return match ? Number(match.percentage) : 100;
+}
+
 export function computeLessonRate(student, duration) {
   if (!student) return 0;
   const type = student.rate_type || "lesson";
