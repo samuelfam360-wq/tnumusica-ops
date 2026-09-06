@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  SectionCard, Button, Field, inputCls, timeRange, SearchBox, LOCATIONS, CENTRES, COURSES, GRADES,
+  SectionCard, Button, Field, inputCls, timeRange, SearchBox, LOCATIONS, CENTRES, GRADES,
   weekdayAbbrev, endTime, ClashWarning, StatusPill, money, todayISO, DeferredInput, RATE_TYPES, rateUnitLabel, parseCSV,
   STUDENT_STATUSES, studentStatusLabel,
 } from "./ui";
@@ -246,6 +246,7 @@ export default function StudentsTab({
   }
 
   const uniqueCourses = [...new Set(students.map((s) => s.course).filter(Boolean))].sort();
+  const rateCourseOptions = [...new Set(services.map((sv) => sv.label).filter(Boolean))];
   const uniqueGrades = [...new Set(students.map((s) => s.grade).filter(Boolean))].sort();
 
   const filtered = students
@@ -285,8 +286,12 @@ export default function StudentsTab({
             <Field label="Course">
               <select className={inputCls} value={form.courseChoice} onChange={(e) => setForm({ ...form, courseChoice: e.target.value })}>
                 <option value="">—</option>
-                {COURSES.map((c) => <option key={c}>{c}</option>)}
+                {rateCourseOptions.map((c) => <option key={c}>{c}</option>)}
+                <option value="Other">Other</option>
               </select>
+              {rateCourseOptions.length === 0 && (
+                <p className="text-xs text-[#8A8272] mt-1">No courses set up in Rates yet — add some there first, or pick "Other" to type one.</p>
+              )}
             </Field>
             {form.courseChoice === "Other" && (
               <Field label="Specify course">
@@ -572,12 +577,13 @@ export default function StudentsTab({
                           </Field>
                         )}
                         <Field label="Course">
-                          <select className={inputCls} value={COURSES.includes(s.course) ? s.course : (s.course ? "Other" : "")} onChange={(e) => onUpdate(s.id, { course: e.target.value === "Other" ? "Other" : e.target.value })}>
+                          <select className={inputCls} value={rateCourseOptions.includes(s.course) ? s.course : (s.course ? "Other" : "")} onChange={(e) => onUpdate(s.id, { course: e.target.value === "Other" ? "Other" : e.target.value })}>
                             <option value="">—</option>
-                            {COURSES.map((c) => <option key={c}>{c}</option>)}
+                            {rateCourseOptions.map((c) => <option key={c}>{c}</option>)}
+                            <option value="Other">Other</option>
                           </select>
                         </Field>
-                        {(s.course === "Other" || (s.course && !COURSES.includes(s.course))) && (
+                        {(s.course === "Other" || (s.course && !rateCourseOptions.includes(s.course))) && (
                           <Field label="Specify course">
                             <DeferredInput className={inputCls} value={s.course === "Other" ? "" : s.course} onCommit={(v) => onUpdate(s.id, { course: v })} />
                           </Field>
