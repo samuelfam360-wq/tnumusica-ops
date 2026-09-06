@@ -13,7 +13,7 @@ import ReportsTab from "../components/ReportsTab";
 import DashboardTab from "../components/DashboardTab";
 import HealthCheckTab from "../components/HealthCheckTab";
 import AICommandBar from "../components/AICommandBar";
-import { KeyNav, StatCard, money, todayISO, addDays, toISODate, LOCATIONS, computeLessonRate } from "../components/ui";
+import { KeyNav, StatCard, money, todayISO, addDays, toISODate, LOCATIONS, computeLessonRate, computeTrialFee, countWeekdayOccurrences, WEEKDAY_NAME_TO_INDEX, monthlyProrationFactor } from "../components/ui";
 
 export default function Home() {
   const [session, setSession] = useState(undefined); // undefined = loading, null = signed out
@@ -129,6 +129,77 @@ export default function Home() {
   function resolveWeekCount(startDateStr, value, unit) {
     const n = Number(value) || 1;
     return unit === "months" ? countWeeklyOccurrences(startDateStr, n) : Math.max(1, n);
+  }
+
+  // A trial person isn't a real student yet — this creates a lightweight
+  // "prospect" record (hidden from the normal roster) plus their one trial
+  // lesson, priced at ~¼ of a monthly rate for that course/grade.
+  async function logTrial({ name, age, course, grade, centre, date, time, duration, rate }) {
+    const { data: prospect, error } = await supabase
+      .from("students")
+      .insert({ name, age: age === "" || age == null ? null : Number(age), course, grade, centre, is_prospect: true })
+      .select()
+      .single();
+    if (error || !prospect) return;
+    const svc = services.find((sv) => sv.course === course && sv.grade === grade);
+    const trialRate = rate !== "" && rate != null ? Number(rate) : computeTrialFee(prospect, services);
+    await supabase.from("appointments").insert({
+      student_id: prospect.id,
+      date,
+      time,
+      duration: Number(duration) || (svc ? svc.duration : 30),
+      location: LOCATIONS.includes(centre) ? centre : LOCATIONS[0],
+      rate: trialRate,
+      is_trial: true,
+      status: "scheduled",
+      invoiced: false,
+      notes: "",
+    });
+    refetchAll();
+  }
+
+  // A trial that didn't lead anywhere — just closes it off, nothing else to do.
+  async function declineTrial(studentId) {
+    await supabase.from("students").update({ is_prospect: false, status: "terminated" }).eq("id", studentId);
+    refetchAll();
+  }
+
+  // A trial that's continuing — turns the prospect into a real student:
+  // sets up their real schedule and billing, and generates their first
+  // batch of recurring lessons starting from the chosen date.
+  async function resolveTrialContinue(studentId, opts) {
+    const { permanentDay, permanentTime, duration, rateType, rate, startDate, scheduleValue, scheduleUnit, centre } = opts;
+    const patch = {
+      is_prospect: false,
+      status: "active",
+      lesson_day: permanentDay,
+      lesson_time: permanentTime,
+      lesson_duration: Number(duration) || 30,
+      rate_type: rateType,
+      rate: Number(rate) || 0,
+      joined_date: startDate,
+      centre,
+    };
+    await supabase.from("students").update(patch).eq("id", studentId);
+    const student = { ...students.find((s) => s.id === studentId), ...patch };
+
+    const location = LOCATIONS.includes(centre) ? centre : LOCATIONS[0];
+    const weeks = resolveWeekCount(startDate, scheduleValue, scheduleUnit);
+    const seriesId = weeks > 1 ? newSeriesId() : null;
+    const rows = Array.from({ length: weeks }, (_, i) => ({
+      student_id: studentId,
+      date: addDays(startDate, i * 7),
+      time: permanentTime,
+      duration: Number(duration) || 30,
+      location,
+      rate: computeLessonRate(student, Number(duration) || 30),
+      status: "scheduled",
+      invoiced: false,
+      series_id: seriesId,
+      notes: "",
+    }));
+    await supabase.from("appointments").insert(rows);
+    refetchAll();
   }
 
   async function addStudent(payload) {
@@ -373,23 +444,6 @@ export default function Home() {
     await supabase.from("invoices").insert({ ...payload, number: nextInvoiceNumber(), paid_date: null });
     refetchAll();
   }
-  // Their first month (joined mid-to-late) or last month (stopped early) can
-  // be a partial month — this works out whether to charge the full monthly
-  // rate or half of it for a given billing period. Any other month is
-  // untouched (always full rate). A trial lesson never factors into this —
-  // joined_date is set from their real recurring schedule, not a trial.
-  function monthlyProrationFactor(student, period) {
-    if (student.joined_date && student.joined_date.slice(0, 7) === period) {
-      const day = Number(student.joined_date.slice(8, 10));
-      return day <= 14 ? 1 : 0.5;
-    }
-    if (student.status !== "active" && student.stopped_date && student.stopped_date.slice(0, 7) === period) {
-      const day = Number(student.stopped_date.slice(8, 10));
-      return day <= 14 ? 0.5 : 1;
-    }
-    return 1;
-  }
-
   async function generateMonthlyInvoice(studentId, period) {
     const student = students.find((s) => s.id === studentId);
     const eligible = appointments.filter(
@@ -401,7 +455,7 @@ export default function Home() {
     if (student?.rate_type === "month") {
       const factor = monthlyProrationFactor(student, period);
       const flatRate = (Number(student.rate) || 0) * factor;
-      const label = factor === 1 ? `Monthly tuition — ${period}` : `Monthly tuition (half month) — ${period}`;
+      const label = factor === 1 ? `Monthly tuition — ${period}` : `Monthly tuition (${Math.round(factor * 100)}% — pro-rated) — ${period}`;
       lines = [{ description: label, amount: flatRate }];
       total = flatRate;
     } else {
@@ -454,7 +508,7 @@ export default function Home() {
         if (!monthlyBilled.has(student.id)) {
           monthlyBilled.add(student.id);
           const factor = monthlyProrationFactor(student, period);
-          const label = factor === 1 ? `${student.name} — Monthly tuition (${period})` : `${student.name} — Monthly tuition, half month (${period})`;
+          const label = factor === 1 ? `${student.name} — Monthly tuition (${period})` : `${student.name} — Monthly tuition, ${Math.round(factor * 100)}% pro-rated (${period})`;
           lines.push({ description: label, amount: (Number(student.rate) || 0) * factor });
         }
       } else {
@@ -876,7 +930,7 @@ export default function Home() {
           <StatCard label="This month, materials" value={money(monthMaterialsProfit)} accent={monthMaterialsProfit >= 0 ? "#7A8B6F" : "#6B2C3E"} />
           <StatCard label="Unpaid invoices" value={money(unpaidInvoicesTotal)} accent="#6B2C3E" />
           <StatCard label="Upcoming lessons" value={upcomingCount} />
-          <StatCard label="Active students" value={students.filter((s) => (s.status || "active") === "active").length} />
+          <StatCard label="Active students" value={students.filter((s) => (s.status || "active") === "active" && !s.is_prospect).length} />
         </div>
 
         <AICommandBar
@@ -952,6 +1006,9 @@ export default function Home() {
             onBulkRemoveStudents={bulkRemoveStudents}
             onBulkUpdateStudents={bulkUpdateStudents}
             onBulkImportStudents={bulkImportStudents}
+            onLogTrial={logTrial}
+            onDeclineTrial={declineTrial}
+            onResolveTrialContinue={resolveTrialContinue}
             onExtendSchedule={extendStudentSchedule}
             onChangeStudentStatus={changeStudentStatus}
             onResumeStudent={resumeStudent}

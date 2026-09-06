@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { jsPDF } from "jspdf";
-import { SectionCard, Button, Field, inputCls, money, todayISO, SearchableSelect, SearchBox, CENTRES } from "./ui";
+import { SectionCard, Button, Field, inputCls, money, todayISO, SearchableSelect, SearchBox, CENTRES, monthlyProrationFactor } from "./ui";
 
 function downloadInvoicePdf(invoice, student, biz = {}) {
   const isPaid = invoice.status === "paid";
@@ -188,7 +188,14 @@ export default function InvoicesTab({ invoices, students, studentMap, appointmen
     eligible.forEach((a) => {
       byDuration[a.duration] = (byDuration[a.duration] || 0) + 1;
     });
-    return { count: eligible.length, byDuration, isMonthly: student?.rate_type === "month", monthlyRate: student?.rate };
+    const isMonthly = student?.rate_type === "month";
+    const factor = isMonthly && student ? monthlyProrationFactor(student, genForm.period) : 1;
+    return {
+      count: eligible.length, byDuration, isMonthly, monthlyRate: student?.rate,
+      proratedAmount: student ? (Number(student.rate) || 0) * factor : 0,
+      isProrated: factor !== 1,
+      proratedPct: Math.round(factor * 100),
+    };
   }, [appointments, students, genForm]);
 
   const centrePreview = useMemo(() => {
@@ -238,7 +245,9 @@ export default function InvoicesTab({ invoices, students, studentMap, appointmen
               <p className="text-sm text-[#8A8272]">No un-invoiced completed lessons for that student in that month yet.</p>
             ) : preview.isMonthly ? (
               <div className="text-sm text-[#5C564A]">
-                Will invoice: a flat {money(preview.monthlyRate)} monthly fee (this student is on a monthly rate, not billed per lesson).
+                Will invoice: {preview.isProrated
+                  ? `${money(preview.proratedAmount)} (${preview.proratedPct}% of the ${money(preview.monthlyRate)} monthly rate — pro-rated for a partial month)`
+                  : `a flat ${money(preview.monthlyRate)} monthly fee`} (this student is on a monthly rate, not billed per lesson).
               </div>
             ) : (
               <div className="text-sm text-[#5C564A]">

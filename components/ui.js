@@ -210,6 +210,51 @@ export function parseCSV(text) {
 // rest goes to the school). Defaults to 100% for a course with no split
 // configured yet in Rates, or no course at all — so nothing changes
 // silently until a split is actually set up.
+export const WEEKDAY_NAME_TO_INDEX = { Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6 };
+
+// Counts how many times a given weekday (0=Sunday..6=Saturday) falls in a
+// month, from a given day of the month onward (default: from the 1st, i.e.
+// the whole month). Used to work out exact pro-rated billing — "of all the
+// Tuesdays this month, how many are left from this date onward".
+export function countWeekdayOccurrences(year, monthIdx, weekday, fromDay) {
+  const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
+  let count = 0;
+  for (let d = fromDay || 1; d <= daysInMonth; d++) {
+    if (new Date(year, monthIdx, d).getDay() === weekday) count += 1;
+  }
+  return count;
+}
+
+// Exact pro-ration for a student's first or last month — not a rough
+// half/full guess, but literally "of all the occurrences of their lesson
+// day this month, how many are actually theirs" — matching how Play Studio
+// Manager calculates it. Any month that isn't their join or stop month
+// always returns a full 1 (untouched).
+export function monthlyProrationFactor(student, period) {
+  const weekday = WEEKDAY_NAME_TO_INDEX[student.lesson_day];
+  const [py, pmStr] = period.split("-");
+  const year = Number(py);
+  const monthIdx = Number(pmStr) - 1; // JS Date months are 0-indexed
+
+  if (student.joined_date && student.joined_date.slice(0, 7) === period) {
+    if (weekday === undefined) return 1;
+    const totalThisMonth = countWeekdayOccurrences(year, monthIdx, weekday, 1);
+    if (totalThisMonth === 0) return 1;
+    const joinDay = Number(student.joined_date.slice(8, 10));
+    const remainingThisMonth = countWeekdayOccurrences(year, monthIdx, weekday, joinDay);
+    return remainingThisMonth / totalThisMonth;
+  }
+  if (student.status !== "active" && student.stopped_date && student.stopped_date.slice(0, 7) === period) {
+    if (weekday === undefined) return 1;
+    const totalThisMonth = countWeekdayOccurrences(year, monthIdx, weekday, 1);
+    if (totalThisMonth === 0) return 1;
+    const stopDay = Number(student.stopped_date.slice(8, 10));
+    const attendedThisMonth = totalThisMonth - countWeekdayOccurrences(year, monthIdx, weekday, stopDay + 1);
+    return attendedThisMonth / totalThisMonth;
+  }
+  return 1;
+}
+
 export function percentageForCourse(course, services) {
   if (!course) return 100;
   const match = (services || []).find((sv) => sv.course === course && sv.percentage != null);

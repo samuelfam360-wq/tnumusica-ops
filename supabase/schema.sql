@@ -31,6 +31,7 @@ create table if not exists students (
   status text default 'active',
   joined_date date,
   stopped_date date,
+  is_prospect boolean not null default false,
   created_at timestamptz default now()
 );
 alter table students enable row level security;

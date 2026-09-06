@@ -74,7 +74,7 @@ export default function DashboardTab({ students, appointments, invoices, materia
       (a) => a.status !== "completed" && a.status !== "cancelled" && a.status !== "rescheduled" && a.status !== "absent" && a.date >= todayISO()
     ).length;
     const outstandingClaims = expenses.filter((e) => e.paid_via === "Personal" && !e.reimbursed).reduce((sum, e) => sum + Number(e.amount), 0);
-    return { unpaidTotal, upcoming, outstandingClaims, activeStudents: students.filter((s) => (s.status || "active") === "active").length };
+    return { unpaidTotal, upcoming, outstandingClaims, activeStudents: students.filter((s) => (s.status || "active") === "active" && !s.is_prospect).length };
   }, [invoices, appointments, expenses, students]);
 
   return (

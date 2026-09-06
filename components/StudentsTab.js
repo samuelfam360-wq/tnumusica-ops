@@ -2,13 +2,13 @@ import { useState } from "react";
 import {
   SectionCard, Button, Field, inputCls, timeRange, SearchBox, LOCATIONS, CENTRES, GRADES,
   weekdayAbbrev, endTime, ClashWarning, StatusPill, money, todayISO, DeferredInput, RATE_TYPES, rateUnitLabel, parseCSV,
-  STUDENT_STATUSES, studentStatusLabel,
+  STUDENT_STATUSES, studentStatusLabel, computeTrialFee, monthlyProrationFactor,
 } from "./ui";
 
 export default function StudentsTab({
   students, appointments = [], services = [], onAdd, onUpdate, onRemove,
   onBulkRemoveStudents, onBulkUpdateStudents, onExtendSchedule, onBulkImportStudents,
-  onChangeStudentStatus, onResumeStudent,
+  onChangeStudentStatus, onResumeStudent, onLogTrial, onDeclineTrial, onResolveTrialContinue,
   lessonPlans = [], onAddLessonPlanItem, onUpdateLessonPlanItem, onRemoveLessonPlanItem, onMoveLessonPlanItem,
   onSetAppointmentStatus, onUpdateAppointment, onReschedule, onMarkAbsent, onRemoveAppointment,
 }) {
@@ -23,6 +23,15 @@ export default function StudentsTab({
   const [stopDate, setStopDate] = useState(todayISO());
   const [resumeFor, setResumeFor] = useState(null); // studentId
   const [resumeForm, setResumeForm] = useState({ date: todayISO(), value: "3", unit: "months" });
+  const [trialForm, setTrialForm] = useState({
+    name: "", age: "", courseChoice: "", gradeChoice: "", centre: "", date: todayISO(), time: "15:00", duration: "", rate: "",
+  });
+  const [resolvingTrialFor, setResolvingTrialFor] = useState(null); // studentId
+  const [resolveOutcome, setResolveOutcome] = useState(""); // "no" | "yes"
+  const [resolveForm, setResolveForm] = useState({
+    permanentDay: "", permanentTime: "", duration: "", rateType: "lesson", rate: "",
+    startDate: todayISO(), scheduleValue: "3", scheduleUnit: "months", skipToNextMonth: false, centre: "",
+  });
   const [form, setForm] = useState({
     name: "", rate: "", rateType: "lesson", age: "", gradeChoice: "", gradeOther: "", courseChoice: "", courseOther: "", centre: "",
     lessonDay: "", lessonTime: "", lessonDuration: "", lessonServiceId: "", scheduleValue: "3", scheduleUnit: "months",
@@ -256,7 +265,11 @@ export default function StudentsTab({
   const uniqueGrades = [...new Set(students.map((s) => s.grade).filter(Boolean))].sort();
 
   const filtered = students
-    .filter((s) => !statusFilter || (s.status || "active") === statusFilter)
+    .filter((s) => {
+      if (!statusFilter) return true;
+      if (statusFilter === "prospect") return s.is_prospect === true;
+      return (s.status || "active") === statusFilter && !s.is_prospect;
+    })
     .filter((s) => !centreFilter || s.centre === centreFilter)
     .filter((s) => !dayFilter || s.lesson_day === dayFilter)
     .filter((s) => !courseFilter || s.course === courseFilter)
@@ -384,6 +397,82 @@ export default function StudentsTab({
         </form>
       </SectionCard>
 
+      <SectionCard title="Log a trial">
+        {(() => {
+          const trialGradeOpts = trialForm.courseChoice
+            ? [...new Set(services.filter((sv) => sv.course === trialForm.courseChoice).map((sv) => sv.grade).filter(Boolean))]
+            : [];
+          const matchedSvc = services.find((sv) => sv.course === trialForm.courseChoice && sv.grade === trialForm.gradeChoice);
+          const previewFee = trialForm.rate !== ""
+            ? Number(trialForm.rate)
+            : computeTrialFee({ course: trialForm.courseChoice, grade: trialForm.gradeChoice, rate_type: "lesson", rate: 0 }, services);
+
+          function submitTrial(e) {
+            e.preventDefault();
+            if (!trialForm.name.trim() || !trialForm.date || !trialForm.time) return;
+            onLogTrial({
+              name: trialForm.name.trim(),
+              age: trialForm.age,
+              course: trialForm.courseChoice,
+              grade: trialForm.gradeChoice,
+              centre: trialForm.centre,
+              date: trialForm.date,
+              time: trialForm.time,
+              duration: trialForm.duration || (matchedSvc ? matchedSvc.duration : 30),
+              rate: trialForm.rate,
+            });
+            setTrialForm({ name: "", age: "", courseChoice: "", gradeChoice: "", centre: "", date: todayISO(), time: "15:00", duration: "", rate: "" });
+          }
+
+          return (
+            <form onSubmit={submitTrial} className="space-y-3">
+              <p className="text-xs text-[#8A8272]">
+                They aren't a real student yet — this creates a lightweight record kept out of your main roster until you resolve the trial one way or the other.
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
+                <Field label="Name">
+                  <input className={inputCls} value={trialForm.name} onChange={(e) => setTrialForm({ ...trialForm, name: e.target.value })} />
+                </Field>
+                <Field label="Age">
+                  <input type="number" className={inputCls} value={trialForm.age} onChange={(e) => setTrialForm({ ...trialForm, age: e.target.value })} />
+                </Field>
+                <Field label="Course">
+                  <select className={inputCls} value={trialForm.courseChoice} onChange={(e) => setTrialForm({ ...trialForm, courseChoice: e.target.value, gradeChoice: "" })}>
+                    <option value="">—</option>
+                    {rateCourseOptions.map((c) => <option key={c}>{c}</option>)}
+                  </select>
+                </Field>
+                <Field label="Grade">
+                  <select className={inputCls} value={trialForm.gradeChoice} onChange={(e) => setTrialForm({ ...trialForm, gradeChoice: e.target.value })} disabled={!trialForm.courseChoice}>
+                    <option value="">—</option>
+                    {trialGradeOpts.map((g) => <option key={g}>{g}</option>)}
+                  </select>
+                </Field>
+                <Field label="Centre">
+                  <select className={inputCls} value={trialForm.centre} onChange={(e) => setTrialForm({ ...trialForm, centre: e.target.value })}>
+                    <option value="">—</option>
+                    {CENTRES.map((c) => <option key={c}>{c}</option>)}
+                  </select>
+                </Field>
+                <Field label="Trial date">
+                  <input type="date" className={inputCls} value={trialForm.date} onChange={(e) => setTrialForm({ ...trialForm, date: e.target.value })} />
+                </Field>
+                <Field label="Trial time">
+                  <input type="time" className={inputCls} value={trialForm.time} onChange={(e) => setTrialForm({ ...trialForm, time: e.target.value })} />
+                </Field>
+                <Field label="Duration (min)">
+                  <input type="number" className={inputCls} placeholder={String(matchedSvc ? matchedSvc.duration : 30)} value={trialForm.duration} onChange={(e) => setTrialForm({ ...trialForm, duration: e.target.value })} />
+                </Field>
+              </div>
+              <Field label="Trial fee (RM, leave blank to auto-fill to ~¼ monthly)">
+                <input type="number" className={inputCls + " w-40"} placeholder={String(previewFee)} value={trialForm.rate} onChange={(e) => setTrialForm({ ...trialForm, rate: e.target.value })} />
+              </Field>
+              <Button type="submit">Log this trial</Button>
+            </form>
+          );
+        })()}
+      </SectionCard>
+
       <SectionCard title="Bulk import from CSV">
         {!csvPreview ? (
           <div className="space-y-2">
@@ -443,12 +532,13 @@ export default function StudentsTab({
       </SectionCard>
 
       <SectionCard
-        title={`Students (${filtered.length}${statusFilter ? ` ${studentStatusLabel(statusFilter).toLowerCase()}` : ""} of ${students.length})`}
+        title={`Students (${filtered.length}${statusFilter ? ` ${statusFilter === "prospect" ? "trial/prospect" : studentStatusLabel(statusFilter).toLowerCase()}` : ""} of ${students.length})`}
         action={
           <div className="flex flex-wrap items-center gap-2">
             <select className={inputCls} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="">All statuses</option>
               {STUDENT_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              <option value="prospect">Prospects (trial, unresolved)</option>
             </select>
             <select className={inputCls} value={centreFilter} onChange={(e) => setCentreFilter(e.target.value)}>
               <option value="">All centres</option>
@@ -566,6 +656,9 @@ export default function StudentsTab({
                         {(s.status || "active") !== "active" && (
                           <span className="text-[#B8563D] font-normal"> · {studentStatusLabel(s.status)}</span>
                         )}
+                        {s.is_prospect && (
+                          <span className="text-[#8A6D3B] font-normal"> · Trial / Prospect</span>
+                        )}
                       </div>
                       {s.notes && <div className="text-xs text-[#8A8272]">{s.notes}</div>}
                     </div>
@@ -577,6 +670,149 @@ export default function StudentsTab({
 
                   {isOpen && (
                     <div className="mt-3 pl-1 space-y-4">
+                      {s.is_prospect && (() => {
+                        const matchedSvc = services.find((sv) => sv.course === s.course && sv.grade === s.grade);
+                        const suggestedRateType = matchedSvc && matchedSvc.monthly_rate != null ? "month" : "lesson";
+                        const previewRate = resolveForm.rate !== ""
+                          ? Number(resolveForm.rate)
+                          : matchedSvc
+                          ? (resolveForm.rateType === "month" && matchedSvc.monthly_rate != null ? matchedSvc.monthly_rate : matchedSvc.rate)
+                          : 0;
+                        const effectiveStartDate = resolveForm.skipToNextMonth
+                          ? (() => {
+                              const d = new Date(resolveForm.startDate + "T00:00:00");
+                              d.setMonth(d.getMonth() + 1, 1);
+                              return d.toISOString().slice(0, 10);
+                            })()
+                          : resolveForm.startDate;
+                        const prorationPreview = resolveForm.permanentDay
+                          ? monthlyProrationFactor(
+                              { lesson_day: resolveForm.permanentDay, joined_date: effectiveStartDate, status: "active" },
+                              effectiveStartDate.slice(0, 7)
+                            )
+                          : 1;
+
+                        return (
+                          <div className="border border-[#8A6D3B] rounded-md p-3 space-y-3 bg-[#FBF7EC]">
+                            <div className="text-sm font-medium">This is a trial / prospect — not yet a real student</div>
+                            {resolvingTrialFor !== s.id ? (
+                              <Button
+                                onClick={() => {
+                                  setResolvingTrialFor(s.id);
+                                  setResolveOutcome("");
+                                  setResolveForm({
+                                    permanentDay: "", permanentTime: "", duration: "", rateType: suggestedRateType, rate: "",
+                                    startDate: todayISO(), scheduleValue: "3", scheduleUnit: "months", skipToNextMonth: false, centre: s.centre || "",
+                                  });
+                                }}
+                              >
+                                Resolve this trial
+                              </Button>
+                            ) : resolveOutcome === "" ? (
+                              <div className="space-y-2">
+                                <p className="text-sm text-[#5C564A]">Did they continue?</p>
+                                <div className="flex gap-2">
+                                  <Button onClick={() => setResolveOutcome("yes")}>Yes, continuing</Button>
+                                  <Button
+                                    variant="secondary"
+                                    onClick={() => { onDeclineTrial(s.id); setResolvingTrialFor(null); }}
+                                  >
+                                    No, not continuing
+                                  </Button>
+                                  <Button variant="secondary" onClick={() => setResolvingTrialFor(null)}>Cancel</Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <form
+                                className="space-y-3"
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  if (!resolveForm.permanentDay || !resolveForm.permanentTime) return;
+                                  onResolveTrialContinue(s.id, {
+                                    permanentDay: resolveForm.permanentDay,
+                                    permanentTime: resolveForm.permanentTime,
+                                    duration: resolveForm.duration || (matchedSvc ? matchedSvc.duration : 30),
+                                    rateType: resolveForm.rateType,
+                                    rate: resolveForm.rate !== "" ? resolveForm.rate : previewRate,
+                                    startDate: effectiveStartDate,
+                                    scheduleValue: resolveForm.scheduleValue,
+                                    scheduleUnit: resolveForm.scheduleUnit,
+                                    centre: resolveForm.centre || s.centre,
+                                  });
+                                  setResolvingTrialFor(null);
+                                }}
+                              >
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                  <Field label="Permanent day">
+                                    <select className={inputCls} value={resolveForm.permanentDay} onChange={(e) => setResolveForm({ ...resolveForm, permanentDay: e.target.value })}>
+                                      <option value="">—</option>
+                                      {WEEKDAYS.map((d) => <option key={d}>{d}</option>)}
+                                    </select>
+                                  </Field>
+                                  <Field label="Time">
+                                    <input type="time" className={inputCls} value={resolveForm.permanentTime} onChange={(e) => setResolveForm({ ...resolveForm, permanentTime: e.target.value })} />
+                                  </Field>
+                                  <Field label="Duration (min)">
+                                    <input type="number" className={inputCls} placeholder={String(matchedSvc ? matchedSvc.duration : 30)} value={resolveForm.duration} onChange={(e) => setResolveForm({ ...resolveForm, duration: e.target.value })} />
+                                  </Field>
+                                  <Field label="Rate type">
+                                    <select
+                                      className={inputCls}
+                                      value={resolveForm.rateType}
+                                      onChange={(e) => setResolveForm({ ...resolveForm, rateType: e.target.value })}
+                                    >
+                                      {RATE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                                    </select>
+                                  </Field>
+                                </div>
+                                <Field label={`Rate (${rateUnitLabel(resolveForm.rateType)}, leave blank to auto-fill from Rates)`}>
+                                  <input type="number" className={inputCls + " w-40"} placeholder={String(previewRate)} value={resolveForm.rate} onChange={(e) => setResolveForm({ ...resolveForm, rate: e.target.value })} />
+                                </Field>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                  <Field label="Start date">
+                                    <input type="date" className={inputCls} value={resolveForm.startDate} onChange={(e) => setResolveForm({ ...resolveForm, startDate: e.target.value })} />
+                                  </Field>
+                                  <Field label="For how long">
+                                    <div className="flex gap-1">
+                                      <input type="number" min="1" className={inputCls + " w-16"} value={resolveForm.scheduleValue} onChange={(e) => setResolveForm({ ...resolveForm, scheduleValue: e.target.value })} />
+                                      <select className={inputCls} value={resolveForm.scheduleUnit} onChange={(e) => setResolveForm({ ...resolveForm, scheduleUnit: e.target.value })}>
+                                        <option value="weeks">Weeks</option>
+                                        <option value="months">Months</option>
+                                      </select>
+                                    </div>
+                                  </Field>
+                                  <Field label="Centre">
+                                    <select className={inputCls} value={resolveForm.centre || s.centre || ""} onChange={(e) => setResolveForm({ ...resolveForm, centre: e.target.value })}>
+                                      <option value="">—</option>
+                                      {CENTRES.map((c) => <option key={c}>{c}</option>)}
+                                    </select>
+                                  </Field>
+                                </div>
+                                <label className="flex items-center gap-2 text-sm text-[#5C564A]">
+                                  <input type="checkbox" checked={resolveForm.skipToNextMonth} onChange={(e) => setResolveForm({ ...resolveForm, skipToNextMonth: e.target.checked })} />
+                                  Skip pro-rating this month — start billing clean next month instead
+                                </label>
+                                {resolveForm.permanentDay && resolveForm.rateType === "month" && (
+                                  <div className="text-sm bg-white border border-[#EDE7DB] rounded-md p-2.5">
+                                    {prorationPreview === 1 ? (
+                                      <span>Their first month will be billed in full: <strong>{money(previewRate)}</strong>.</span>
+                                    ) : (
+                                      <span>
+                                        Their first month is pro-rated to <strong>{Math.round(prorationPreview * 100)}%</strong> of the monthly rate — that's{" "}
+                                        <strong>{money(previewRate * prorationPreview)}</strong> instead of {money(previewRate)}.
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                                <div className="flex gap-2">
+                                  <Button type="submit">Confirm — set up as an active student</Button>
+                                  <Button type="button" variant="secondary" onClick={() => setResolvingTrialFor(null)}>Cancel</Button>
+                                </div>
+                              </form>
+                            )}
+                          </div>
+                        );
+                      })()}
                       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
                         <Field label="Name">
                           <DeferredInput className={inputCls} value={s.name} onCommit={(v) => onUpdate(s.id, { name: v })} />
