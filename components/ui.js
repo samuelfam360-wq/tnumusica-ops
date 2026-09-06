@@ -216,17 +216,21 @@ export function percentageForCourse(course, services) {
   return match ? Number(match.percentage) : 100;
 }
 
-// A trial lesson is priced at roughly a quarter of what a full month would
-// cost for that course/grade — using the student's own Monthly rate if
-// they're already on one, or the per-lesson Rates entry for their
-// Course+Grade otherwise (a month's worth of weekly lessons ÷ 4 works out
-// to one lesson's rate, so this is just that rate directly).
+// A trial (or a one-off "extra lesson") is priced at roughly a quarter of
+// what a full month would cost for that course/grade — preferring the
+// student's own Monthly rate if they're already on one, then the Rates
+// table's dedicated Monthly rate for their Course+Grade, then falling back
+// to the per-lesson rate (a month's worth of weekly lessons ÷ 4 works out
+// to one lesson's rate, so that's a reasonable last resort).
 export function computeTrialFee(student, services) {
   if (!student) return 0;
   if (student.rate_type === "month" && Number(student.rate) > 0) {
     return Math.round((Number(student.rate) / 4) * 100) / 100;
   }
   const svc = (services || []).find((sv) => sv.course === student.course && sv.grade === student.grade);
+  if (svc && svc.monthly_rate != null && Number(svc.monthly_rate) > 0) {
+    return Math.round((Number(svc.monthly_rate) / 4) * 100) / 100;
+  }
   return svc ? Number(svc.rate) || 0 : Number(student.rate) || 0;
 }
 

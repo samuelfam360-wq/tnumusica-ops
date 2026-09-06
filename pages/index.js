@@ -296,7 +296,7 @@ export default function Home() {
     const student = students.find((s) => s.id === studentId);
     if (!student || student.joined_date) return;
     const list = Array.isArray(rows) ? rows : [rows];
-    const realDates = list.filter((r) => !r.is_trial).map((r) => r.date).filter(Boolean).sort();
+    const realDates = list.filter((r) => !r.is_trial && !r.is_extra).map((r) => r.date).filter(Boolean).sort();
     if (realDates.length > 0) {
       await supabase.from("students").update({ joined_date: realDates[0] }).eq("id", studentId);
     }
@@ -314,7 +314,7 @@ export default function Home() {
   }
   async function updateAppointment(id, patch) {
     await supabase.from("appointments").update(patch).eq("id", id);
-    if (patch.is_trial === false) {
+    if (patch.is_trial === false || patch.is_extra === false) {
       const appt = appointments.find((a) => a.id === id);
       if (appt) await maybeSetJoinedDate(appt.student_id, { ...appt, ...patch });
     }

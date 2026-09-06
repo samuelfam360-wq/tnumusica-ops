@@ -49,6 +49,7 @@ grant select, insert, update, delete on students to authenticated;`,
   course text default '',
   grade text default '',
   percentage numeric not null default 100,
+  monthly_rate numeric,
   created_at timestamptz default now()
 );
 alter table services enable row level security;
@@ -74,6 +75,7 @@ grant select, insert, update, delete on services to authenticated;`,
   notes text default '',
   rescheduled_from uuid references appointments(id) on delete set null,
   is_trial boolean not null default false,
+  is_extra boolean not null default false,
   created_at timestamptz default now()
 );
 alter table appointments enable row level security;
@@ -215,8 +217,8 @@ grant select, insert, update, delete on lesson_plan_items to authenticated;`,
 const TABLE_CHECKS = [
   ["allowed_users", "email", [], "Allowed users (login access list)"],
   ["students", "id", ["centre", "lesson_day", "lesson_time", "lesson_duration", "rate_type", "grade", "course", "status", "joined_date", "stopped_date"], "Students"],
-  ["services", "id", ["course", "grade", "percentage"], "Rates / grade codes"],
-  ["appointments", "id", ["series_id", "notes", "rescheduled_from", "invoiced", "service_code", "is_trial"], "Calendar / appointments"],
+  ["services", "id", ["course", "grade", "percentage", "monthly_rate"], "Rates / grade codes"],
+  ["appointments", "id", ["series_id", "notes", "rescheduled_from", "invoiced", "service_code", "is_trial", "is_extra"], "Calendar / appointments"],
   ["invoices", "id", ["billed_to", "lines", "period", "paid_date"], "Invoices"],
   ["materials", "id", [], "Materials"],
   ["material_sales", "id", [], "Material sales"],
@@ -244,6 +246,8 @@ function ALTER_COLUMN_SQL(table, column) {
     "students.joined_date": "date",
     "students.stopped_date": "date",
     "appointments.is_trial": "boolean not null default false",
+    "appointments.is_extra": "boolean not null default false",
+    "services.monthly_rate": "numeric",
     "appointments.series_id": "uuid",
     "appointments.notes": "text default ''",
     "appointments.rescheduled_from": "uuid references appointments(id) on delete set null",

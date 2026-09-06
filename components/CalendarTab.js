@@ -28,6 +28,7 @@ const blankForm = (students) => ({
   repeatWeeks: 1,
   notes: "",
   isTrial: false,
+  isExtra: false,
 });
 
 export default function CalendarTab({ appointments, students, studentMap, services, unavailableDates, lessonPlans = [], onUpdateLessonPlanItem, onMarkUnavailable, onUnmarkUnavailable, onAdd, onUpdate, onUpdateSeries, onBulkUpdate, onReschedule, onMarkAbsent, onSetStatus, onRemove }) {
@@ -159,7 +160,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
       time: form.time,
       duration: Number(form.duration) || 60,
       location: form.location,
-      rate: form.rate === "" ? (form.isTrial ? computeTrialFee(student, services) : computeLessonRate(student, Number(form.duration) || 60)) : Number(form.rate),
+      rate: form.rate === "" ? ((form.isTrial || form.isExtra) ? computeTrialFee(student, services) : computeLessonRate(student, Number(form.duration) || 60)) : Number(form.rate),
       service_id: svc ? svc.id : null,
       service_code: svc ? svc.code : null,
       status: "scheduled",
@@ -167,6 +168,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
       series_id: seriesId,
       notes: form.notes.trim(),
       is_trial: form.isTrial,
+      is_extra: form.isExtra,
     };
     const startDate = new Date(form.date + "T00:00:00");
     const rows = Array.from({ length: weeks }, (_, i) => {
@@ -193,6 +195,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
       rate: String(a.rate),
       notes: a.notes || "",
       isTrial: !!a.is_trial,
+      isExtra: !!a.is_extra,
     });
   }
   function cancelEdit() {
@@ -212,6 +215,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
       service_code: svc ? svc.code : null,
       notes: editForm.notes.trim(),
       is_trial: editForm.isTrial,
+      is_extra: editForm.isExtra,
     };
     if (applyToSeries && seriesIdOfEditing) {
       onUpdateSeries(seriesIdOfEditing, patch);
@@ -368,7 +372,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
             <Field label="Rate (RM, optional — leave blank to auto-fill)">
               <input
                 type="number"
-                placeholder={String(form.isTrial ? computeTrialFee(studentMap[form.studentId], services) : computeLessonRate(studentMap[form.studentId], Number(form.duration) || 60))}
+                placeholder={String((form.isTrial || form.isExtra) ? computeTrialFee(studentMap[form.studentId], services) : computeLessonRate(studentMap[form.studentId], Number(form.duration) || 60))}
                 className={inputCls}
                 value={form.rate}
                 onChange={(e) => setForm({ ...form, rate: e.target.value })}
@@ -376,8 +380,14 @@ export default function CalendarTab({ appointments, students, studentMap, servic
             </Field>
             <Field label="Trial lesson?">
               <label className="flex items-center gap-2 h-[38px]">
-                <input type="checkbox" checked={form.isTrial} onChange={(e) => setForm({ ...form, isTrial: e.target.checked, rate: "" })} />
+                <input type="checkbox" checked={form.isTrial} onChange={(e) => setForm({ ...form, isTrial: e.target.checked, isExtra: e.target.checked ? false : form.isExtra, rate: "" })} />
                 <span className="text-sm text-[#5C564A]">This is a trial — auto-fills to ~¼ of a monthly rate</span>
+              </label>
+            </Field>
+            <Field label="Extra lesson?">
+              <label className="flex items-center gap-2 h-[38px]">
+                <input type="checkbox" checked={form.isExtra} onChange={(e) => setForm({ ...form, isExtra: e.target.checked, isTrial: e.target.checked ? false : form.isTrial, rate: "" })} />
+                <span className="text-sm text-[#5C564A]">A top-up/makeup lesson — also ~¼ of a monthly rate</span>
               </label>
             </Field>
             <Field label="Repeat weekly, for how many weeks">
@@ -644,8 +654,14 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                       </Field>
                       <Field label="Trial lesson?">
                         <label className="flex items-center gap-2 h-[38px]">
-                          <input type="checkbox" checked={editForm.isTrial} onChange={(e) => setEditForm({ ...editForm, isTrial: e.target.checked })} />
+                          <input type="checkbox" checked={editForm.isTrial} onChange={(e) => setEditForm({ ...editForm, isTrial: e.target.checked, isExtra: e.target.checked ? false : editForm.isExtra })} />
                           <span className="text-sm text-[#5C564A]">Trial</span>
+                        </label>
+                      </Field>
+                      <Field label="Extra lesson?">
+                        <label className="flex items-center gap-2 h-[38px]">
+                          <input type="checkbox" checked={editForm.isExtra} onChange={(e) => setEditForm({ ...editForm, isExtra: e.target.checked, isTrial: e.target.checked ? false : editForm.isTrial })} />
+                          <span className="text-sm text-[#5C564A]">Extra/top-up</span>
                         </label>
                       </Field>
                       <Field label="Description / notes">
@@ -737,6 +753,7 @@ export default function CalendarTab({ appointments, students, studentMap, servic
                       <div className="text-sm font-medium">
                         {studentMap[a.student_id]?.name || "Unknown student"}
                         {a.is_trial && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-[#F5EDDD] text-[#8A6D3B] align-middle">Trial</span>}
+                        {a.is_extra && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-[#E7EDE1] text-[#4C5A43] align-middle">Extra</span>}
                       </div>
                       <div className="text-xs text-[#8A8272]">
                         {a.service_code ? `(${a.service_code}) ` : ""}{a.duration} min · {a.location} · {money(a.rate)}

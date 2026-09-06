@@ -50,6 +50,7 @@ create table if not exists services (
   course text default '',
   grade text default '',
   percentage numeric not null default 100,
+  monthly_rate numeric,
   created_at timestamptz default now()
 );
 alter table services enable row level security;
@@ -80,6 +81,7 @@ create table if not exists appointments (
   notes text default '',
   rescheduled_from uuid references appointments(id) on delete set null,
   is_trial boolean not null default false,
+  is_extra boolean not null default false,
   created_at timestamptz default now()
 );
 alter table appointments enable row level security;

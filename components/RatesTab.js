@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { SectionCard, Button, Field, inputCls, DeferredInput, money } from "./ui";
 
 export default function RatesTab({ services, onAdd, onUpdate, onRemove }) {
-  const [form, setForm] = useState({ course: "", grade: "", duration: 30, rate: "", percentage: 100 });
+  const [form, setForm] = useState({ course: "", grade: "", duration: 30, rate: "", monthlyRate: "", percentage: 100 });
 
   const uniqueCourses = useMemo(
     () => [...new Set(services.map((s) => s.course).filter(Boolean))].sort(),
@@ -31,9 +31,10 @@ export default function RatesTab({ services, onAdd, onUpdate, onRemove }) {
       label: form.grade.trim(),
       duration: Number(form.duration) || 30,
       rate: Number(form.rate) || 0,
+      monthly_rate: form.monthlyRate === "" ? null : Number(form.monthlyRate) || 0,
       percentage: Number(form.percentage) || 0,
     });
-    setForm({ course: "", grade: "", duration: 30, rate: "", percentage: 100 });
+    setForm({ course: "", grade: "", duration: 30, rate: "", monthlyRate: "", percentage: 100 });
   }
 
   const grouped = useMemo(() => {
@@ -51,13 +52,13 @@ export default function RatesTab({ services, onAdd, onUpdate, onRemove }) {
     <div className="space-y-4">
       <SectionCard title="About this table">
         <p className="text-sm text-[#5C564A]">
-          Set up each Course and Grade combination you teach, with its duration, rate, and your percentage split with the school for that course.
-          These never appear on invoices — invoices only ever show duration and amount. This is also where "Add student" pulls its Course and Grade choices from.
+          Set up each Course and Grade combination you teach, with its per-lesson rate, monthly rate (for students billed monthly), and your percentage split with the school for that course.
+          These never appear on invoices — invoices only ever show duration and amount. This is also where "Add student" pulls its Course and Grade choices from, and auto-fills the right rate.
         </p>
       </SectionCard>
 
       <SectionCard title="Add course / grade">
-        <form onSubmit={submit} className="grid grid-cols-2 sm:grid-cols-5 gap-3 items-end">
+        <form onSubmit={submit} className="grid grid-cols-2 sm:grid-cols-6 gap-3 items-end">
           <Field label="Course">
             <input
               className={inputCls}
@@ -76,13 +77,16 @@ export default function RatesTab({ services, onAdd, onUpdate, onRemove }) {
           <Field label="Duration (min)">
             <input type="number" className={inputCls} value={form.duration} onChange={(e) => setForm({ ...form, duration: e.target.value })} />
           </Field>
-          <Field label="Rate (RM)">
+          <Field label="Rate per lesson (RM)">
             <input type="number" className={inputCls} value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value })} />
+          </Field>
+          <Field label="Rate per month (RM, optional)">
+            <input type="number" className={inputCls} value={form.monthlyRate} onChange={(e) => setForm({ ...form, monthlyRate: e.target.value })} />
           </Field>
           <Field label="Your % of this course">
             <input type="number" min="0" max="100" className={inputCls} value={form.percentage} onChange={(e) => setForm({ ...form, percentage: e.target.value })} />
           </Field>
-          <div className="col-span-2 sm:col-span-5">
+          <div className="col-span-2 sm:col-span-6">
             <Button type="submit">Add</Button>
             {uniqueCourses.includes(form.course) && (
               <span className="text-xs text-[#8A8272] ml-3">Percentage auto-filled from this course's other grades — edit if this one's different.</span>
@@ -105,13 +109,13 @@ export default function RatesTab({ services, onAdd, onUpdate, onRemove }) {
                   {rows.map((s) => (
                     <div key={s.id} className="flex flex-wrap items-center gap-3 py-2.5 px-3">
                       <DeferredInput
-                        className={inputCls + " flex-1 min-w-[120px]"}
+                        className={inputCls + " flex-1 min-w-[100px]"}
                         placeholder="Course"
                         value={s.course || ""}
                         onCommit={(v) => onUpdate(s.id, { course: v })}
                       />
                       <DeferredInput
-                        className={inputCls + " flex-1 min-w-[120px]"}
+                        className={inputCls + " flex-1 min-w-[100px]"}
                         placeholder="Grade"
                         value={s.grade || s.label || ""}
                         onCommit={(v) => onUpdate(s.id, { grade: v })}
@@ -121,8 +125,12 @@ export default function RatesTab({ services, onAdd, onUpdate, onRemove }) {
                         <span className="text-xs text-[#8A8272]">min</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <span className="text-xs text-[#8A8272]">RM</span>
+                        <span className="text-xs text-[#8A8272]">RM/lesson</span>
                         <DeferredInput type="number" className={inputCls + " w-20"} value={s.rate} onCommit={(v) => onUpdate(s.id, { rate: Number(v) || 0 })} />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-[#8A8272]">RM/month</span>
+                        <DeferredInput type="number" className={inputCls + " w-20"} placeholder="—" value={s.monthly_rate ?? ""} onCommit={(v) => onUpdate(s.id, { monthly_rate: v === "" ? null : Number(v) || 0 })} />
                       </div>
                       <div className="flex items-center gap-1">
                         <DeferredInput type="number" className={inputCls + " w-16"} value={s.percentage ?? 100} onCommit={(v) => onUpdate(s.id, { percentage: Number(v) || 0 })} />

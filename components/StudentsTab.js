@@ -50,7 +50,7 @@ export default function StudentsTab({
       gradeChoice: gradeValue,
       lessonServiceId: svc ? svc.id : "",
       lessonDuration: svc ? String(svc.duration) : form.lessonDuration,
-      rate: svc ? String(svc.rate) : form.rate,
+      rate: svc ? String(form.rateType === "month" && svc.monthly_rate != null ? svc.monthly_rate : svc.rate) : form.rate,
     });
   }
 
@@ -319,7 +319,17 @@ export default function StudentsTab({
               </select>
             </Field>
             <Field label="Rate type">
-              <select className={inputCls} value={form.rateType} onChange={(e) => setForm({ ...form, rateType: e.target.value })}>
+              <select
+                className={inputCls}
+                value={form.rateType}
+                onChange={(e) => {
+                  const newType = e.target.value;
+                  const svc = services.find((sv) => sv.course === form.courseChoice && sv.grade === form.gradeChoice);
+                  const nextForm = { ...form, rateType: newType };
+                  if (svc) nextForm.rate = String(newType === "month" && svc.monthly_rate != null ? svc.monthly_rate : svc.rate);
+                  setForm(nextForm);
+                }}
+              >
                 {RATE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </Field>
@@ -594,11 +604,31 @@ export default function StudentsTab({
                           return (
                             <>
                               <Field label="Grade">
-                                <select className={inputCls} value={gradeOpts.includes(s.grade) ? s.grade : (s.grade ? "Other" : "")} onChange={(e) => onUpdate(s.id, { grade: e.target.value === "Other" ? "Other" : e.target.value })}>
+                                <select
+                                  className={inputCls}
+                                  value={gradeOpts.includes(s.grade) ? s.grade : (s.grade ? "Other" : "")}
+                                  onChange={(e) => {
+                                    const newGrade = e.target.value;
+                                    if (newGrade === "Other") {
+                                      onUpdate(s.id, { grade: "Other" });
+                                      return;
+                                    }
+                                    const svc = services.find((sv) => sv.course === s.course && sv.grade === newGrade);
+                                    const patch = { grade: newGrade };
+                                    if (svc) {
+                                      patch.lesson_duration = svc.duration;
+                                      patch.rate = s.rate_type === "month" && svc.monthly_rate != null ? svc.monthly_rate : svc.rate;
+                                    }
+                                    onUpdate(s.id, patch);
+                                  }}
+                                >
                                   <option value="">—</option>
                                   {gradeOpts.map((g) => <option key={g}>{g}</option>)}
                                   <option value="Other">Other</option>
                                 </select>
+                                {linked && (
+                                  <p className="text-xs text-[#8A8272] mt-1">Picking a grade here also fills in Lesson duration and Rate below, from Rates.</p>
+                                )}
                               </Field>
                               {(s.grade === "Other" || (s.grade && !gradeOpts.includes(s.grade))) && (
                                 <Field label="Specify grade">
@@ -640,7 +670,19 @@ export default function StudentsTab({
                           <DeferredInput type="number" className={inputCls} value={s.lesson_duration ?? ""} onCommit={(v) => onUpdate(s.id, { lesson_duration: v === "" ? null : Number(v) })} />
                         </Field>
                         <Field label="Rate type">
-                          <select className={inputCls} value={s.rate_type || "lesson"} onChange={(e) => onUpdate(s.id, { rate_type: e.target.value })}>
+                          <select
+                            className={inputCls}
+                            value={s.rate_type || "lesson"}
+                            onChange={(e) => {
+                              const newType = e.target.value;
+                              const svc = services.find((sv) => sv.course === s.course && sv.grade === s.grade);
+                              const patch = { rate_type: newType };
+                              if (svc) {
+                                patch.rate = newType === "month" && svc.monthly_rate != null ? svc.monthly_rate : svc.rate;
+                              }
+                              onUpdate(s.id, patch);
+                            }}
+                          >
                             {RATE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                           </select>
                         </Field>
