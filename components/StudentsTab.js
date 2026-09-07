@@ -936,6 +936,29 @@ export default function StudentsTab({
                         <Field label={`Rate (${rateUnitLabel(s.rate_type)})`}>
                           <DeferredInput type="number" className={inputCls} value={s.rate} onCommit={(v) => onUpdate(s.id, { rate: Number(v) || 0 })} />
                         </Field>
+                        {s.rate_type === "month" && (
+                          <>
+                            <Field label="First month billing">
+                              <select
+                                className={inputCls}
+                                value={s.first_month_billing || ""}
+                                onChange={(e) => onUpdate(s.id, { first_month_billing: e.target.value || null })}
+                              >
+                                <option value="">— (exact pro-rated)</option>
+                                <option value="full">Full</option>
+                                <option value="half">Half</option>
+                              </select>
+                            </Field>
+                            <Field label="Trial credit (RM, first month)">
+                              <DeferredInput
+                                type="number"
+                                className={inputCls}
+                                value={s.first_month_trial_credit ?? ""}
+                                onCommit={(v) => onUpdate(s.id, { first_month_trial_credit: v === "" ? null : Number(v) })}
+                              />
+                            </Field>
+                          </>
+                        )}
                         <div className="col-span-2 sm:col-span-5">
                           <Field label="Notes">
                             <DeferredInput className={inputCls} value={s.notes || ""} onCommit={(v) => onUpdate(s.id, { notes: v })} />

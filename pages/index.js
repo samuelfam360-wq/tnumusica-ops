@@ -200,7 +200,15 @@ export default function Home() {
       first_month_trial_credit: trialCredit,
       centre,
     };
-    await supabase.from("students").update(patch).eq("id", studentId);
+    const { error: patchError } = await supabase.from("students").update(patch).eq("id", studentId);
+    if (patchError) {
+      // Don't silently carry on — if the student record itself didn't save
+      // (e.g. a missing column, a permissions issue), generating lessons
+      // anyway would leave a half-set-up student with no billing info on
+      // file, which quietly turns into a full-price charge later.
+      alert(`Couldn't resolve this trial — the student record failed to save:\n\n${patchError.message}\n\nNo lessons were created. Fix the issue above (check Health Check) and try again.`);
+      return;
+    }
     const student = { ...students.find((s) => s.id === studentId), ...patch };
 
     const location = LOCATIONS.includes(centre) ? centre : LOCATIONS[0];
