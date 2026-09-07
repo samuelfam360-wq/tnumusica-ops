@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { SectionCard, money, todayISO, percentageForCourse } from "./ui";
+import { SectionCard, money, todayISO, percentageForCourse, invoicePercentage } from "./ui";
 
 export default function IncomeTab({ appointments, invoices, studentMap, materials = [], materialSales = [], expenses = [], services = [] }) {
   const months = useMemo(() => {
@@ -72,13 +72,23 @@ export default function IncomeTab({ appointments, invoices, studentMap, material
         if (!byCourse[course]) byCourse[course] = 0;
         byCourse[course] += Number(a.rate) || 0;
       });
+    // Monthly-tuition invoices carry the same course/school split as
+    // per-lesson income — this table used to only tally completed lessons,
+    // so any student billed monthly never showed up in the split at all.
+    invoices
+      .filter((i) => i.status === "paid")
+      .forEach((i) => {
+        const course = i.student_id ? (studentMap[i.student_id]?.course || "No course set") : "Mixed (centre invoices)";
+        if (!byCourse[course]) byCourse[course] = 0;
+        byCourse[course] += Number(i.total) || 0;
+      });
     return Object.entries(byCourse)
       .map(([course, total]) => {
-        const pct = course === "No course set" ? 100 : percentageForCourse(course, services);
+        const pct = course === "No course set" || course === "Mixed (centre invoices)" ? 100 : percentageForCourse(course, services);
         return { course, total, pct, yourShare: (total * pct) / 100, schoolShare: total - (total * pct) / 100 };
       })
       .sort((a, b) => b.total - a.total);
-  }, [appointments, studentMap, services]);
+  }, [appointments, invoices, studentMap, services]);
 
   const splitTotals = splitByCourse.reduce(
     (acc, r) => ({ total: acc.total + r.total, yourShare: acc.yourShare + r.yourShare, schoolShare: acc.schoolShare + r.schoolShare }),
@@ -185,7 +195,7 @@ export default function IncomeTab({ appointments, invoices, studentMap, material
 
       <SectionCard title="Revenue split with the school, by course">
         <p className="text-xs text-[#8A8272] mb-3">
-          Based on completed lessons only — invoiced bundles and materials income aren't split by course here, since one invoice can cover several courses at once.
+          Includes completed lessons and paid monthly invoices. Centre-wide invoices (billed to a centre rather than one student) mix several students' courses together, so those fall under "Mixed (centre invoices)" at the default 100% rather than being split.
         </p>
         {splitByCourse.length === 0 ? (
           <p className="text-sm text-[#8A8272]">No completed lessons yet.</p>

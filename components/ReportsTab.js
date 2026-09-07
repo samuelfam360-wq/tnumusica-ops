@@ -131,14 +131,23 @@ export default function ReportsTab({ students, appointments, invoices, materials
             const course = studentMap[a.student_id]?.course || "No course set";
             byCourse[course] = (byCourse[course] || 0) + (Number(a.rate) || 0);
           });
+        // Monthly-tuition invoices carry the same course/school split as
+        // per-lesson income — this used to only tally completed lessons, so
+        // a student billed monthly never showed up in the split at all.
+        invoices
+          .filter((i) => i.status === "paid" && inRange(i.paid_date || i.date))
+          .forEach((i) => {
+            const course = i.student_id ? (studentMap[i.student_id]?.course || "No course set") : "Mixed (centre invoices)";
+            byCourse[course] = (byCourse[course] || 0) + (Number(i.total) || 0);
+          });
         const courseEntries = Object.entries(byCourse);
         if (courseEntries.length === 0) {
-          row(["No completed lessons in this range."], [500]);
+          row(["No completed lessons or paid invoices in this range."], [500]);
         } else {
           row(["Course", "Total", "Your %", "Your share", "School's share"], [140, 90, 60, 100, 100], true);
           let yourTotal = 0, schoolTotal = 0, grand = 0;
           courseEntries.forEach(([course, total]) => {
-            const pct = course === "No course set" ? 100 : percentageForCourse(course, services);
+            const pct = course === "No course set" || course === "Mixed (centre invoices)" ? 100 : percentageForCourse(course, services);
             const yourShare = (total * pct) / 100;
             const schoolShare = total - yourShare;
             yourTotal += yourShare; schoolTotal += schoolShare; grand += total;

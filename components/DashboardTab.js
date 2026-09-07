@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { SectionCard, StatCard, Button, money, todayISO, percentageForCourse } from "./ui";
+import { SectionCard, StatCard, Button, money, todayISO, percentageForCourse, invoicePercentage } from "./ui";
 
 export default function DashboardTab({ students, appointments, invoices, materials, materialSales, expenses, studentMap, services = [] }) {
   const [viewMonth, setViewMonth] = useState(() => {
@@ -27,15 +27,23 @@ export default function DashboardTab({ students, appointments, invoices, materia
     const cancelled = monthAppts.filter((a) => a.status === "cancelled");
 
     const lessonIncome = completed.reduce((sum, a) => sum + (Number(a.rate) || 0), 0);
-    const yourShare = completed.reduce((sum, a) => {
+    const lessonYourShare = completed.reduce((sum, a) => {
       const course = studentMap[a.student_id]?.course;
       const pct = course ? percentageForCourse(course, services) : 100;
       return sum + ((Number(a.rate) || 0) * pct) / 100;
     }, 0);
-    const schoolShare = lessonIncome - yourShare;
-    const invoiceIncome = invoices
-      .filter((i) => i.status === "paid" && (i.paid_date || i.date).slice(0, 7) === period)
-      .reduce((sum, i) => sum + (Number(i.total) || 0), 0);
+    const paidInvoicesThisMonth = invoices.filter((i) => i.status === "paid" && (i.paid_date || i.date).slice(0, 7) === period);
+    const invoiceIncome = paidInvoicesThisMonth.reduce((sum, i) => sum + (Number(i.total) || 0), 0);
+    // Monthly-tuition invoices carry a course/school split too, same as
+    // per-lesson income — this used to only apply to lesson income, so a
+    // student billed monthly (rather than per lesson) never had their split
+    // counted at all.
+    const invoiceYourShare = paidInvoicesThisMonth.reduce((sum, i) => {
+      const pct = invoicePercentage(i, studentMap, services);
+      return sum + ((Number(i.total) || 0) * pct) / 100;
+    }, 0);
+    const yourShare = lessonYourShare + invoiceYourShare;
+    const schoolShare = lessonIncome + invoiceIncome - yourShare;
 
     const monthSales = materialSales.filter((s) => s.date.slice(0, 7) === period);
     const materialMap = {};
@@ -104,7 +112,7 @@ export default function DashboardTab({ students, appointments, invoices, materia
           <StatCard label="Absent / cancelled" value={`${stats.absentCount} / ${stats.cancelledCount}`} />
         </div>
         <div className="grid grid-cols-2 gap-3 mt-3">
-          <StatCard label="Your share (of lesson income)" value={money(stats.yourShare)} accent="#4C5A43" />
+          <StatCard label="Your share" value={money(stats.yourShare)} accent="#4C5A43" />
           <StatCard label="School's share" value={money(stats.schoolShare)} accent="#6B2C3E" />
         </div>
       </SectionCard>

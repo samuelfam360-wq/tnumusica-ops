@@ -266,6 +266,18 @@ export function percentageForCourse(course, services) {
   return match ? Number(match.percentage) : 100;
 }
 
+// Same idea as percentageForCourse, but for an invoice rather than a single
+// lesson. Per-student invoices look up that student's course. Centre-wide
+// invoices (billed_to a centre, no single student_id) mix several students'
+// courses together with no way to split them back apart, so — consistent
+// with the "no split configured yet" default above — they default to 100%
+// rather than silently losing revenue on one side of the split.
+export function invoicePercentage(invoice, studentMap, services) {
+  if (!invoice || !invoice.student_id) return 100;
+  const course = studentMap?.[invoice.student_id]?.course;
+  return percentageForCourse(course, services);
+}
+
 // A trial (or a one-off "extra lesson") is priced at roughly a quarter of
 // what a full month would cost for that course/grade — preferring the
 // student's own Monthly rate if they're already on one, then the Rates
