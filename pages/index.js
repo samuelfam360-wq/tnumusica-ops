@@ -13,7 +13,7 @@ import ReportsTab from "../components/ReportsTab";
 import DashboardTab from "../components/DashboardTab";
 import HealthCheckTab from "../components/HealthCheckTab";
 import AICommandBar from "../components/AICommandBar";
-import { KeyNav, StatCard, money, todayISO, addDays, addMonths, toISODate, LOCATIONS, computeLessonRate, computeTrialFee, countWeekdayOccurrences, WEEKDAY_NAME_TO_INDEX, monthlyProrationFactor } from "../components/ui";
+import { KeyNav, StatCard, money, todayISO, addDays, addMonths, toISODate, LOCATIONS, computeLessonRate, computeTrialFee, countWeekdayOccurrences, WEEKDAY_NAME_TO_INDEX, monthlyProrationFactor, nextDateForWeekday, nextDateForWeekdayAfter } from "../components/ui";
 
 export default function Home() {
   const [session, setSession] = useState(undefined); // undefined = loading, null = signed out
@@ -91,21 +91,6 @@ export default function Home() {
   }, [students]);
 
   // ---- Students ----
-  const WEEKDAY_TO_JSDAY = { Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6 };
-  function nextDateForWeekday(weekdayName, fromDate) {
-    const targetDay = WEEKDAY_TO_JSDAY[weekdayName];
-    if (targetDay === undefined) return null;
-    const base = fromDate ? new Date(fromDate + "T00:00:00") : new Date();
-    const diff = (targetDay - base.getDay() + 7) % 7;
-    const d = new Date(base);
-    d.setDate(d.getDate() + diff);
-    return toISODate(d);
-  }
-  function nextDateForWeekdayAfter(weekdayName, afterDateStr) {
-    const d = new Date(afterDateStr + "T00:00:00");
-    d.setDate(d.getDate() + 1);
-    return nextDateForWeekday(weekdayName, toISODate(d));
-  }
   function newSeriesId() {
     if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
     return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -168,7 +153,9 @@ export default function Home() {
   // sets up their real schedule and billing, and generates their first
   // batch of recurring lessons starting from the chosen date.
   async function resolveTrialContinue(studentId, opts) {
-    const { permanentDay, permanentTime, duration, rateType, rate, startMonth, scheduleValue, scheduleUnit, centre, billingChoice, includeTrial } = opts;
+    const { permanentDay, permanentTime, duration, rateType, rate, startMonth, scheduleValue, scheduleUnit, centre, billingChoice } = opts;
+
+    const trialAppt = appointments.find((a) => a.student_id === studentId && a.is_trial);
 
     // Anchored to the chosen starting month, not "today" — so if a trial
     // happened in August but you only get around to resolving it in
@@ -176,16 +163,20 @@ export default function Home() {
     // month after the trial), not October.
     const billingMonth = billingChoice === "trial_only" ? addMonths(startMonth, 1) : startMonth;
     const monthFirstDay = `${billingMonth}-01`;
-    const effectiveStartDate = nextDateForWeekday(permanentDay, monthFirstDay);
-    const firstMonthBilling = billingChoice === "half" ? "half" : "full";
 
-    // If they're keeping the trial lesson as the first lesson of the month,
-    // remember what it was already charged so the first invoice can credit
-    // it back (otherwise a "full month" invoice would double-charge the
-    // lesson they already paid for at trial). Only trust a trial that's
-    // still on file for this exact student.
-    const trialAppt = includeTrial ? appointments.find((a) => a.student_id === studentId && a.is_trial) : null;
-    const trialCredit = trialAppt ? Number(trialAppt.rate) || 0 : null;
+    // "Full month" anchors to this month's very first lesson on the
+    // permanent day — the existing exact per-weekday-occurrence math (see
+    // monthlyProrationFactor) then naturally computes 100%, since there's
+    // nothing earlier in the month to exclude.
+    //
+    // "Continue after the trial" anchors instead to the day right after the
+    // trial itself. That same exact math then works out however many
+    // lessons are genuinely left in the month — an accurate fraction, not a
+    // guessed half — whether or not the trial happened to land on the
+    // permanent lesson's weekday.
+    const effectiveStartDate = billingChoice === "continue_after_trial" && trialAppt
+      ? nextDateForWeekdayAfter(permanentDay, trialAppt.date)
+      : nextDateForWeekday(permanentDay, monthFirstDay);
 
     const patch = {
       is_prospect: false,
@@ -196,8 +187,6 @@ export default function Home() {
       rate_type: rateType,
       rate: Number(rate) || 0,
       joined_date: effectiveStartDate,
-      first_month_billing: firstMonthBilling,
-      first_month_trial_credit: trialCredit,
       centre,
     };
     const { error: patchError } = await supabase.from("students").update(patch).eq("id", studentId);
@@ -216,7 +205,9 @@ export default function Home() {
     const seriesId = weeks > 1 ? newSeriesId() : null;
     // Skip generating a new lesson on the exact date the trial already
     // covers — the trial appointment itself stands in as that week's lesson
-    // instead of getting a duplicate row alongside it.
+    // instead of getting a duplicate row alongside it. This can happen
+    // regardless of which billing option was picked (e.g. "Full month" but
+    // the trial happened to land right on the first permanent-day slot).
     const trialDate = trialAppt ? trialAppt.date : null;
     const rows = Array.from({ length: weeks }, (_, i) => ({
       student_id: studentId,

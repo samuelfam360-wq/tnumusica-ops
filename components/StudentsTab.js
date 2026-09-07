@@ -2,7 +2,7 @@ import { useState } from "react";
 import {
   SectionCard, Button, Field, inputCls, timeRange, SearchBox, LOCATIONS, CENTRES, GRADES,
   weekdayAbbrev, endTime, ClashWarning, StatusPill, money, todayISO, DeferredInput, RATE_TYPES, rateUnitLabel, parseCSV,
-  STUDENT_STATUSES, studentStatusLabel, computeTrialFee,
+  STUDENT_STATUSES, studentStatusLabel, computeTrialFee, nextDateForWeekday, nextDateForWeekdayAfter,
 } from "./ui";
 
 export default function StudentsTab({
@@ -692,7 +692,6 @@ export default function StudentsTab({
                                   setResolveForm({
                                     permanentDay: "", permanentTime: "", duration: "", rateType: suggestedRateType, rate: "",
                                     startMonth: trialMonth, scheduleValue: "3", scheduleUnit: "months", billingChoice: "full", centre: s.centre || "",
-                                    includeTrial: !!trialAppt,
                                   });
                                 }}
                               >
@@ -729,7 +728,6 @@ export default function StudentsTab({
                                     scheduleUnit: resolveForm.scheduleUnit,
                                     centre: resolveForm.centre || s.centre,
                                     billingChoice: resolveForm.billingChoice,
-                                    includeTrial: !!(resolveForm.includeTrial && trialAppt),
                                   });
                                   setResolvingTrialFor(null);
                                 }}
@@ -781,40 +779,33 @@ export default function StudentsTab({
                                   </Field>
                                 </div>
                                 <p className="text-xs text-[#8A8272]">
-                                  This is set to the month their trial actually happened in — change it if that's not right. "Full"/"Half" bill this month; "Only the trial" starts them clean the month after this one, whichever month you pick here.
+                                  This is set to the month their trial actually happened in — change it if that's not right. "Only the trial" starts them clean the month after this one, whichever month you pick here.
                                 </p>
-                                {trialAppt && (
-                                  <label className="flex items-start gap-2 text-sm border border-[#EDE7DB] rounded-md px-3 py-2 cursor-pointer bg-white">
-                                    <input
-                                      type="checkbox"
-                                      className="mt-0.5"
-                                      checked={!!resolveForm.includeTrial}
-                                      onChange={(e) => setResolveForm({ ...resolveForm, includeTrial: e.target.checked })}
-                                    />
-                                    <span>
-                                      Include this trial lesson ({trialAppt.date}, {money(Number(trialAppt.rate) || 0)}) as the first lesson of the month.
-                                      Stops it showing up twice on the calendar, and credits what was already paid against this month's invoice.
-                                    </span>
-                                  </label>
-                                )}
-                                {resolveForm.rateType === "month" && (
-                                  <div className="space-y-1.5">
-                                    <div className="text-xs uppercase tracking-wide text-[#8A8272]">First month billing</div>
-                                    {[
-                                      ["full", "Charge full month", previewRate],
-                                      ["half", "Half month", previewRate / 2],
-                                      ["trial_only", "Only the trial — start billing next month", null],
-                                    ].map(([value, label, amount]) => (
-                                      <label key={value} className="flex items-center gap-2 text-sm border border-[#EDE7DB] rounded-md px-3 py-2 cursor-pointer" style={{ borderColor: resolveForm.billingChoice === value ? "#8A6D3B" : undefined }}>
-                                        <input type="radio" name={`billingChoice-${s.id}`} checked={resolveForm.billingChoice === value} onChange={() => setResolveForm({ ...resolveForm, billingChoice: value })} />
-                                        <span>{label}</span>
-                                        <span className="ml-auto text-[#8A8272]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
-                                          {amount != null ? money(amount) : "—"}
-                                        </span>
+                                {resolveForm.rateType === "month" && resolveForm.permanentDay && (() => {
+                                  const firstLessonDate = nextDateForWeekday(resolveForm.permanentDay, `${resolveForm.startMonth}-01`);
+                                  const afterTrialDate = trialAppt ? nextDateForWeekdayAfter(resolveForm.permanentDay, trialAppt.date) : null;
+                                  return (
+                                    <div className="space-y-1.5">
+                                      <div className="text-xs uppercase tracking-wide text-[#8A8272]">First month billing</div>
+                                      <label className="flex items-center gap-2 text-sm border border-[#EDE7DB] rounded-md px-3 py-2 cursor-pointer" style={{ borderColor: resolveForm.billingChoice === "full" ? "#8A6D3B" : undefined }}>
+                                        <input type="radio" name={`billingChoice-${s.id}`} checked={resolveForm.billingChoice === "full"} onChange={() => setResolveForm({ ...resolveForm, billingChoice: "full" })} />
+                                        <span>Full month — bill from {firstLessonDate}</span>
+                                        <span className="ml-auto text-[#8A8272]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{money(previewRate)}</span>
                                       </label>
-                                    ))}
-                                  </div>
-                                )}
+                                      {trialAppt && (
+                                        <label className="flex items-center gap-2 text-sm border border-[#EDE7DB] rounded-md px-3 py-2 cursor-pointer" style={{ borderColor: resolveForm.billingChoice === "continue_after_trial" ? "#8A6D3B" : undefined }}>
+                                          <input type="radio" name={`billingChoice-${s.id}`} checked={resolveForm.billingChoice === "continue_after_trial"} onChange={() => setResolveForm({ ...resolveForm, billingChoice: "continue_after_trial" })} />
+                                          <span>Continue after the trial — bill from {afterTrialDate} (exact pro-rated amount, worked out at invoice time)</span>
+                                        </label>
+                                      )}
+                                      <label className="flex items-center gap-2 text-sm border border-[#EDE7DB] rounded-md px-3 py-2 cursor-pointer" style={{ borderColor: resolveForm.billingChoice === "trial_only" ? "#8A6D3B" : undefined }}>
+                                        <input type="radio" name={`billingChoice-${s.id}`} checked={resolveForm.billingChoice === "trial_only"} onChange={() => setResolveForm({ ...resolveForm, billingChoice: "trial_only" })} />
+                                        <span>Only the trial — start billing next month</span>
+                                        <span className="ml-auto text-[#8A8272]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>—</span>
+                                      </label>
+                                    </div>
+                                  );
+                                })()}
                                 <div className="flex gap-2">
                                   <Button type="submit">Confirm — set up as an active student</Button>
                                   <Button type="button" variant="secondary" onClick={() => setResolvingTrialFor(null)}>Cancel</Button>
@@ -937,27 +928,17 @@ export default function StudentsTab({
                           <DeferredInput type="number" className={inputCls} value={s.rate} onCommit={(v) => onUpdate(s.id, { rate: Number(v) || 0 })} />
                         </Field>
                         {s.rate_type === "month" && (
-                          <>
-                            <Field label="First month billing">
-                              <select
-                                className={inputCls}
-                                value={s.first_month_billing || ""}
-                                onChange={(e) => onUpdate(s.id, { first_month_billing: e.target.value || null })}
-                              >
-                                <option value="">— (exact pro-rated)</option>
-                                <option value="full">Full</option>
-                                <option value="half">Half</option>
-                              </select>
-                            </Field>
-                            <Field label="Trial credit (RM, first month)">
-                              <DeferredInput
-                                type="number"
-                                className={inputCls}
-                                value={s.first_month_trial_credit ?? ""}
-                                onCommit={(v) => onUpdate(s.id, { first_month_trial_credit: v === "" ? null : Number(v) })}
-                              />
-                            </Field>
-                          </>
+                          <Field label="First month billing">
+                            <select
+                              className={inputCls}
+                              value={s.first_month_billing || ""}
+                              onChange={(e) => onUpdate(s.id, { first_month_billing: e.target.value || null })}
+                            >
+                              <option value="">— (exact pro-rated)</option>
+                              <option value="full">Full</option>
+                              <option value="half">Half</option>
+                            </select>
+                          </Field>
                         )}
                         <div className="col-span-2 sm:col-span-5">
                           <Field label="Notes">

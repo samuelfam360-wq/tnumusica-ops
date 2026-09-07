@@ -334,6 +334,27 @@ export function addDays(dateStr, days) {
   return toISODate(d);
 }
 
+// Finds the next date on/after fromDate (default: today) that falls on the
+// given weekday name — shared by both the scheduling logic (pages/index.js)
+// and any preview UI that needs to show "this lands on <date>" before the
+// user commits to anything.
+const WEEKDAY_TO_JSDAY = { Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6 };
+export function nextDateForWeekday(weekdayName, fromDate) {
+  const targetDay = WEEKDAY_TO_JSDAY[weekdayName];
+  if (targetDay === undefined) return null;
+  const base = fromDate ? new Date(fromDate + "T00:00:00") : new Date();
+  const diff = (targetDay - base.getDay() + 7) % 7;
+  const d = new Date(base);
+  d.setDate(d.getDate() + diff);
+  return toISODate(d);
+}
+export function nextDateForWeekdayAfter(weekdayName, afterDateStr) {
+  const d = new Date(afterDateStr + "T00:00:00");
+  d.setDate(d.getDate() + 1);
+  return nextDateForWeekday(weekdayName, toISODate(d));
+}
+
+
 // Adds months to a "YYYY-MM" period string, returning another "YYYY-MM".
 export function addMonths(period, n) {
   const [y, m] = period.split("-").map(Number);
