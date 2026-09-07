@@ -30,7 +30,7 @@ export default function StudentsTab({
   const [resolveOutcome, setResolveOutcome] = useState(""); // "no" | "yes"
   const [resolveForm, setResolveForm] = useState({
     permanentDay: "", permanentTime: "", duration: "", rateType: "lesson", rate: "",
-    startDate: todayISO(), scheduleValue: "3", scheduleUnit: "months", billingChoice: "full", centre: "",
+    startMonth: todayISO().slice(0, 7), scheduleValue: "3", scheduleUnit: "months", billingChoice: "full", centre: "",
   });
   const [form, setForm] = useState({
     name: "", rate: "", rateType: "lesson", age: "", gradeChoice: "", gradeOther: "", courseChoice: "", courseOther: "", centre: "",
@@ -685,11 +685,13 @@ export default function StudentsTab({
                             {resolvingTrialFor !== s.id ? (
                               <Button
                                 onClick={() => {
+                                  const trialAppt = appointments.find((a) => a.student_id === s.id && a.is_trial);
+                                  const trialMonth = trialAppt ? trialAppt.date.slice(0, 7) : todayISO().slice(0, 7);
                                   setResolvingTrialFor(s.id);
                                   setResolveOutcome("");
                                   setResolveForm({
                                     permanentDay: "", permanentTime: "", duration: "", rateType: suggestedRateType, rate: "",
-                                    startDate: todayISO(), scheduleValue: "3", scheduleUnit: "months", billingChoice: "full", centre: s.centre || "",
+                                    startMonth: trialMonth, scheduleValue: "3", scheduleUnit: "months", billingChoice: "full", centre: s.centre || "",
                                   });
                                 }}
                               >
@@ -721,7 +723,7 @@ export default function StudentsTab({
                                     duration: resolveForm.duration || (matchedSvc ? matchedSvc.duration : 30),
                                     rateType: resolveForm.rateType,
                                     rate: resolveForm.rate !== "" ? resolveForm.rate : previewRate,
-                                    startDate: resolveForm.startDate,
+                                    startMonth: resolveForm.startMonth,
                                     scheduleValue: resolveForm.scheduleValue,
                                     scheduleUnit: resolveForm.scheduleUnit,
                                     centre: resolveForm.centre || s.centre,
@@ -757,8 +759,8 @@ export default function StudentsTab({
                                   <input type="number" className={inputCls + " w-40"} placeholder={String(previewRate)} value={resolveForm.rate} onChange={(e) => setResolveForm({ ...resolveForm, rate: e.target.value })} />
                                 </Field>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                  <Field label="Start date">
-                                    <input type="date" className={inputCls} value={resolveForm.startDate} onChange={(e) => setResolveForm({ ...resolveForm, startDate: e.target.value })} />
+                                  <Field label="Starting month">
+                                    <input type="month" className={inputCls} value={resolveForm.startMonth} onChange={(e) => setResolveForm({ ...resolveForm, startMonth: e.target.value })} />
                                   </Field>
                                   <Field label="For how long">
                                     <div className="flex gap-1">
@@ -776,6 +778,9 @@ export default function StudentsTab({
                                     </select>
                                   </Field>
                                 </div>
+                                <p className="text-xs text-[#8A8272]">
+                                  This is set to the month their trial actually happened in — change it if that's not right. "Full"/"Half" bill this month; "Only the trial" starts them clean the month after this one, whichever month you pick here.
+                                </p>
                                 {resolveForm.rateType === "month" && (
                                   <div className="space-y-1.5">
                                     <div className="text-xs uppercase tracking-wide text-[#8A8272]">First month billing</div>

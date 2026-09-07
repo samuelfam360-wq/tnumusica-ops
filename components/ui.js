@@ -334,6 +334,13 @@ export function addDays(dateStr, days) {
   return toISODate(d);
 }
 
+// Adds months to a "YYYY-MM" period string, returning another "YYYY-MM".
+export function addMonths(period, n) {
+  const [y, m] = period.split("-").map(Number);
+  const d = new Date(y, m - 1 + Number(n), 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 export function weekdayAbbrev(dateStr) {
   return WEEKDAY_LABELS[new Date(dateStr + "T00:00:00").getDay()];
 }

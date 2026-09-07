@@ -13,7 +13,7 @@ import ReportsTab from "../components/ReportsTab";
 import DashboardTab from "../components/DashboardTab";
 import HealthCheckTab from "../components/HealthCheckTab";
 import AICommandBar from "../components/AICommandBar";
-import { KeyNav, StatCard, money, todayISO, addDays, toISODate, LOCATIONS, computeLessonRate, computeTrialFee, countWeekdayOccurrences, WEEKDAY_NAME_TO_INDEX, monthlyProrationFactor } from "../components/ui";
+import { KeyNav, StatCard, money, todayISO, addDays, addMonths, toISODate, LOCATIONS, computeLessonRate, computeTrialFee, countWeekdayOccurrences, WEEKDAY_NAME_TO_INDEX, monthlyProrationFactor } from "../components/ui";
 
 export default function Home() {
   const [session, setSession] = useState(undefined); // undefined = loading, null = signed out
@@ -168,19 +168,16 @@ export default function Home() {
   // sets up their real schedule and billing, and generates their first
   // batch of recurring lessons starting from the chosen date.
   async function resolveTrialContinue(studentId, opts) {
-    const { permanentDay, permanentTime, duration, rateType, rate, startDate, scheduleValue, scheduleUnit, centre, billingChoice } = opts;
+    const { permanentDay, permanentTime, duration, rateType, rate, startMonth, scheduleValue, scheduleUnit, centre, billingChoice } = opts;
 
-    // "Only the trial, start next month" shifts their real join date to the
-    // first occurrence of their lesson day next month — a clean start,
-    // never a partial month.
-    let effectiveStartDate = startDate;
-    let firstMonthBilling = billingChoice === "half" ? "half" : "full";
-    if (billingChoice === "trial_only") {
-      const nextMonthFirst = new Date(startDate + "T00:00:00");
-      nextMonthFirst.setMonth(nextMonthFirst.getMonth() + 1, 1);
-      effectiveStartDate = nextDateForWeekday(permanentDay, toISODate(nextMonthFirst));
-      firstMonthBilling = "full";
-    }
+    // Anchored to the chosen starting month, not "today" — so if a trial
+    // happened in August but you only get around to resolving it in
+    // September, "start next month" still correctly means September (the
+    // month after the trial), not October.
+    const billingMonth = billingChoice === "trial_only" ? addMonths(startMonth, 1) : startMonth;
+    const monthFirstDay = `${billingMonth}-01`;
+    const effectiveStartDate = nextDateForWeekday(permanentDay, monthFirstDay);
+    const firstMonthBilling = billingChoice === "half" ? "half" : "full";
 
     const patch = {
       is_prospect: false,
