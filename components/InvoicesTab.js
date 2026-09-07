@@ -190,11 +190,15 @@ export default function InvoicesTab({ invoices, students, studentMap, appointmen
     });
     const isMonthly = student?.rate_type === "month";
     const factor = isMonthly && student ? monthlyProrationFactor(student, genForm.period) : 1;
+    const grossAmount = student ? (Number(student.rate) || 0) * factor : 0;
+    const isFirstMonth = student?.joined_date && student.joined_date.slice(0, 7) === genForm.period;
+    const trialCredit = isFirstMonth ? Number(student?.first_month_trial_credit) || 0 : 0;
     return {
       count: eligible.length, byDuration, isMonthly, monthlyRate: student?.rate,
-      proratedAmount: student ? (Number(student.rate) || 0) * factor : 0,
+      proratedAmount: Math.max(0, grossAmount - trialCredit),
       isProrated: factor !== 1,
       proratedPct: Math.round(factor * 100),
+      trialCredit,
     };
   }, [appointments, students, genForm]);
 
@@ -247,7 +251,10 @@ export default function InvoicesTab({ invoices, students, studentMap, appointmen
               <div className="text-sm text-[#5C564A]">
                 Will invoice: {preview.isProrated
                   ? `${money(preview.proratedAmount)} (${preview.proratedPct}% of the ${money(preview.monthlyRate)} monthly rate — pro-rated for a partial month)`
-                  : `a flat ${money(preview.monthlyRate)} monthly fee`} (this student is on a monthly rate, not billed per lesson).
+                  : `${money(preview.proratedAmount)}${preview.trialCredit > 0 ? "" : " flat"} monthly fee`} (this student is on a monthly rate, not billed per lesson).
+                {preview.trialCredit > 0 && (
+                  <> Includes a {money(preview.trialCredit)} credit for the trial lesson already paid.</>
+                )}
               </div>
             ) : (
               <div className="text-sm text-[#5C564A]">

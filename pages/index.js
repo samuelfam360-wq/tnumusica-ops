@@ -168,7 +168,7 @@ export default function Home() {
   // sets up their real schedule and billing, and generates their first
   // batch of recurring lessons starting from the chosen date.
   async function resolveTrialContinue(studentId, opts) {
-    const { permanentDay, permanentTime, duration, rateType, rate, startMonth, scheduleValue, scheduleUnit, centre, billingChoice } = opts;
+    const { permanentDay, permanentTime, duration, rateType, rate, startMonth, scheduleValue, scheduleUnit, centre, billingChoice, includeTrial } = opts;
 
     // Anchored to the chosen starting month, not "today" — so if a trial
     // happened in August but you only get around to resolving it in
@@ -178,6 +178,14 @@ export default function Home() {
     const monthFirstDay = `${billingMonth}-01`;
     const effectiveStartDate = nextDateForWeekday(permanentDay, monthFirstDay);
     const firstMonthBilling = billingChoice === "half" ? "half" : "full";
+
+    // If they're keeping the trial lesson as the first lesson of the month,
+    // remember what it was already charged so the first invoice can credit
+    // it back (otherwise a "full month" invoice would double-charge the
+    // lesson they already paid for at trial). Only trust a trial that's
+    // still on file for this exact student.
+    const trialAppt = includeTrial ? appointments.find((a) => a.student_id === studentId && a.is_trial) : null;
+    const trialCredit = trialAppt ? Number(trialAppt.rate) || 0 : null;
 
     const patch = {
       is_prospect: false,
@@ -189,6 +197,7 @@ export default function Home() {
       rate: Number(rate) || 0,
       joined_date: effectiveStartDate,
       first_month_billing: firstMonthBilling,
+      first_month_trial_credit: trialCredit,
       centre,
     };
     await supabase.from("students").update(patch).eq("id", studentId);
@@ -197,6 +206,10 @@ export default function Home() {
     const location = LOCATIONS.includes(centre) ? centre : LOCATIONS[0];
     const weeks = resolveWeekCount(effectiveStartDate, scheduleValue, scheduleUnit);
     const seriesId = weeks > 1 ? newSeriesId() : null;
+    // Skip generating a new lesson on the exact date the trial already
+    // covers — the trial appointment itself stands in as that week's lesson
+    // instead of getting a duplicate row alongside it.
+    const trialDate = trialAppt ? trialAppt.date : null;
     const rows = Array.from({ length: weeks }, (_, i) => ({
       student_id: studentId,
       date: addDays(effectiveStartDate, i * 7),
@@ -208,7 +221,7 @@ export default function Home() {
       invoiced: false,
       series_id: seriesId,
       notes: "",
-    }));
+    })).filter((r) => r.date !== trialDate);
     await supabase.from("appointments").insert(rows);
     refetchAll();
   }
@@ -466,9 +479,16 @@ export default function Home() {
     if (student?.rate_type === "month") {
       const factor = monthlyProrationFactor(student, period);
       const flatRate = (Number(student.rate) || 0) * factor;
-      const label = factor === 1 ? `Monthly tuition — ${period}` : `Monthly tuition (${Math.round(factor * 100)}% — pro-rated) — ${period}`;
-      lines = [{ description: label, amount: flatRate }];
-      total = flatRate;
+      // Only their very first billed month can carry a trial credit — a
+      // lesson they already paid for at trial time, folded into this
+      // month's schedule instead of billed separately.
+      const isFirstMonth = student.joined_date && student.joined_date.slice(0, 7) === period;
+      const credit = isFirstMonth ? Number(student.first_month_trial_credit) || 0 : 0;
+      const netAmount = Math.max(0, flatRate - credit);
+      let label = factor === 1 ? `Monthly tuition — ${period}` : `Monthly tuition (${Math.round(factor * 100)}% — pro-rated) — ${period}`;
+      if (credit > 0) label += ` (+ 1 trial lesson, ${money(credit)} already paid — credited)`;
+      lines = [{ description: label, amount: netAmount }];
+      total = netAmount;
     } else {
       const byDuration = {};
       eligible.forEach((a) => {
@@ -519,8 +539,13 @@ export default function Home() {
         if (!monthlyBilled.has(student.id)) {
           monthlyBilled.add(student.id);
           const factor = monthlyProrationFactor(student, period);
-          const label = factor === 1 ? `${student.name} — Monthly tuition (${period})` : `${student.name} — Monthly tuition, ${Math.round(factor * 100)}% pro-rated (${period})`;
-          lines.push({ description: label, amount: (Number(student.rate) || 0) * factor });
+          const flatRate = (Number(student.rate) || 0) * factor;
+          const isFirstMonth = student.joined_date && student.joined_date.slice(0, 7) === period;
+          const credit = isFirstMonth ? Number(student.first_month_trial_credit) || 0 : 0;
+          const netAmount = Math.max(0, flatRate - credit);
+          let label = factor === 1 ? `${student.name} — Monthly tuition (${period})` : `${student.name} — Monthly tuition, ${Math.round(factor * 100)}% pro-rated (${period})`;
+          if (credit > 0) label += ` (+ 1 trial lesson, ${money(credit)} already paid — credited)`;
+          lines.push({ description: label, amount: netAmount });
         }
       } else {
         const d = a.duration;

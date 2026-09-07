@@ -33,6 +33,7 @@ grant select, insert, update, delete on allowed_users to authenticated;`,
   stopped_date date,
   is_prospect boolean not null default false,
   first_month_billing text,
+  first_month_trial_credit numeric,
   created_at timestamptz default now()
 );
 alter table students enable row level security;
@@ -218,7 +219,7 @@ grant select, insert, update, delete on lesson_plan_items to authenticated;`,
 // [table, primary select column, extra columns to verify exist, human label]
 const TABLE_CHECKS = [
   ["allowed_users", "email", [], "Allowed users (login access list)"],
-  ["students", "id", ["centre", "lesson_day", "lesson_time", "lesson_duration", "rate_type", "grade", "course", "status", "joined_date", "stopped_date", "is_prospect", "first_month_billing"], "Students"],
+  ["students", "id", ["centre", "lesson_day", "lesson_time", "lesson_duration", "rate_type", "grade", "course", "status", "joined_date", "stopped_date", "is_prospect", "first_month_billing", "first_month_trial_credit"], "Students"],
   ["services", "id", ["course", "grade", "percentage", "monthly_rate"], "Rates / grade codes"],
   ["appointments", "id", ["series_id", "notes", "rescheduled_from", "invoiced", "service_code", "is_trial", "is_extra"], "Calendar / appointments"],
   ["invoices", "id", ["billed_to", "lines", "period", "paid_date"], "Invoices"],
@@ -249,6 +250,7 @@ function ALTER_COLUMN_SQL(table, column) {
     "students.stopped_date": "date",
     "students.is_prospect": "boolean not null default false",
     "students.first_month_billing": "text",
+    "students.first_month_trial_credit": "numeric",
     "appointments.is_trial": "boolean not null default false",
     "appointments.is_extra": "boolean not null default false",
     "services.monthly_rate": "numeric",

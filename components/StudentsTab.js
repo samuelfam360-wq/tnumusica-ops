@@ -671,6 +671,7 @@ export default function StudentsTab({
                   {isOpen && (
                     <div className="mt-3 pl-1 space-y-4">
                       {s.is_prospect && (() => {
+                        const trialAppt = appointments.find((a) => a.student_id === s.id && a.is_trial);
                         const matchedSvc = services.find((sv) => sv.course === s.course && sv.grade === s.grade);
                         const suggestedRateType = matchedSvc && matchedSvc.monthly_rate != null ? "month" : "lesson";
                         const previewRate = resolveForm.rate !== ""
@@ -685,13 +686,13 @@ export default function StudentsTab({
                             {resolvingTrialFor !== s.id ? (
                               <Button
                                 onClick={() => {
-                                  const trialAppt = appointments.find((a) => a.student_id === s.id && a.is_trial);
                                   const trialMonth = trialAppt ? trialAppt.date.slice(0, 7) : todayISO().slice(0, 7);
                                   setResolvingTrialFor(s.id);
                                   setResolveOutcome("");
                                   setResolveForm({
                                     permanentDay: "", permanentTime: "", duration: "", rateType: suggestedRateType, rate: "",
                                     startMonth: trialMonth, scheduleValue: "3", scheduleUnit: "months", billingChoice: "full", centre: s.centre || "",
+                                    includeTrial: !!trialAppt,
                                   });
                                 }}
                               >
@@ -728,6 +729,7 @@ export default function StudentsTab({
                                     scheduleUnit: resolveForm.scheduleUnit,
                                     centre: resolveForm.centre || s.centre,
                                     billingChoice: resolveForm.billingChoice,
+                                    includeTrial: !!(resolveForm.includeTrial && trialAppt),
                                   });
                                   setResolvingTrialFor(null);
                                 }}
@@ -781,6 +783,20 @@ export default function StudentsTab({
                                 <p className="text-xs text-[#8A8272]">
                                   This is set to the month their trial actually happened in — change it if that's not right. "Full"/"Half" bill this month; "Only the trial" starts them clean the month after this one, whichever month you pick here.
                                 </p>
+                                {trialAppt && (
+                                  <label className="flex items-start gap-2 text-sm border border-[#EDE7DB] rounded-md px-3 py-2 cursor-pointer bg-white">
+                                    <input
+                                      type="checkbox"
+                                      className="mt-0.5"
+                                      checked={!!resolveForm.includeTrial}
+                                      onChange={(e) => setResolveForm({ ...resolveForm, includeTrial: e.target.checked })}
+                                    />
+                                    <span>
+                                      Include this trial lesson ({trialAppt.date}, {money(Number(trialAppt.rate) || 0)}) as the first lesson of the month.
+                                      Stops it showing up twice on the calendar, and credits what was already paid against this month's invoice.
+                                    </span>
+                                  </label>
+                                )}
                                 {resolveForm.rateType === "month" && (
                                   <div className="space-y-1.5">
                                     <div className="text-xs uppercase tracking-wide text-[#8A8272]">First month billing</div>
