@@ -32,6 +32,8 @@ create table if not exists students (
   joined_date date,
   stopped_date date,
   is_prospect boolean not null default false,
+  first_month_billing text,
+  first_month_factor numeric,
   created_at timestamptz default now()
 );
 alter table students enable row level security;

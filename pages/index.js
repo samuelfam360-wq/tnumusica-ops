@@ -168,7 +168,20 @@ export default function Home() {
   // sets up their real schedule and billing, and generates their first
   // batch of recurring lessons starting from the chosen date.
   async function resolveTrialContinue(studentId, opts) {
-    const { permanentDay, permanentTime, duration, rateType, rate, startDate, scheduleValue, scheduleUnit, centre } = opts;
+    const { permanentDay, permanentTime, duration, rateType, rate, startDate, scheduleValue, scheduleUnit, centre, billingChoice } = opts;
+
+    // "Only the trial, start next month" shifts their real join date to the
+    // first occurrence of their lesson day next month — a clean start,
+    // never a partial month.
+    let effectiveStartDate = startDate;
+    let firstMonthBilling = billingChoice === "half" ? "half" : "full";
+    if (billingChoice === "trial_only") {
+      const nextMonthFirst = new Date(startDate + "T00:00:00");
+      nextMonthFirst.setMonth(nextMonthFirst.getMonth() + 1, 1);
+      effectiveStartDate = nextDateForWeekday(permanentDay, toISODate(nextMonthFirst));
+      firstMonthBilling = "full";
+    }
+
     const patch = {
       is_prospect: false,
       status: "active",
@@ -177,18 +190,19 @@ export default function Home() {
       lesson_duration: Number(duration) || 30,
       rate_type: rateType,
       rate: Number(rate) || 0,
-      joined_date: startDate,
+      joined_date: effectiveStartDate,
+      first_month_billing: firstMonthBilling,
       centre,
     };
     await supabase.from("students").update(patch).eq("id", studentId);
     const student = { ...students.find((s) => s.id === studentId), ...patch };
 
     const location = LOCATIONS.includes(centre) ? centre : LOCATIONS[0];
-    const weeks = resolveWeekCount(startDate, scheduleValue, scheduleUnit);
+    const weeks = resolveWeekCount(effectiveStartDate, scheduleValue, scheduleUnit);
     const seriesId = weeks > 1 ? newSeriesId() : null;
     const rows = Array.from({ length: weeks }, (_, i) => ({
       student_id: studentId,
-      date: addDays(startDate, i * 7),
+      date: addDays(effectiveStartDate, i * 7),
       time: permanentTime,
       duration: Number(duration) || 30,
       location,

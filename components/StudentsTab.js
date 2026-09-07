@@ -2,7 +2,7 @@ import { useState } from "react";
 import {
   SectionCard, Button, Field, inputCls, timeRange, SearchBox, LOCATIONS, CENTRES, GRADES,
   weekdayAbbrev, endTime, ClashWarning, StatusPill, money, todayISO, DeferredInput, RATE_TYPES, rateUnitLabel, parseCSV,
-  STUDENT_STATUSES, studentStatusLabel, computeTrialFee, monthlyProrationFactor,
+  STUDENT_STATUSES, studentStatusLabel, computeTrialFee,
 } from "./ui";
 
 export default function StudentsTab({
@@ -30,7 +30,7 @@ export default function StudentsTab({
   const [resolveOutcome, setResolveOutcome] = useState(""); // "no" | "yes"
   const [resolveForm, setResolveForm] = useState({
     permanentDay: "", permanentTime: "", duration: "", rateType: "lesson", rate: "",
-    startDate: todayISO(), scheduleValue: "3", scheduleUnit: "months", skipToNextMonth: false, centre: "",
+    startDate: todayISO(), scheduleValue: "3", scheduleUnit: "months", billingChoice: "full", centre: "",
   });
   const [form, setForm] = useState({
     name: "", rate: "", rateType: "lesson", age: "", gradeChoice: "", gradeOther: "", courseChoice: "", courseOther: "", centre: "",
@@ -678,19 +678,6 @@ export default function StudentsTab({
                           : matchedSvc
                           ? (resolveForm.rateType === "month" && matchedSvc.monthly_rate != null ? matchedSvc.monthly_rate : matchedSvc.rate)
                           : 0;
-                        const effectiveStartDate = resolveForm.skipToNextMonth
-                          ? (() => {
-                              const d = new Date(resolveForm.startDate + "T00:00:00");
-                              d.setMonth(d.getMonth() + 1, 1);
-                              return d.toISOString().slice(0, 10);
-                            })()
-                          : resolveForm.startDate;
-                        const prorationPreview = resolveForm.permanentDay
-                          ? monthlyProrationFactor(
-                              { lesson_day: resolveForm.permanentDay, joined_date: effectiveStartDate, status: "active" },
-                              effectiveStartDate.slice(0, 7)
-                            )
-                          : 1;
 
                         return (
                           <div className="border border-[#8A6D3B] rounded-md p-3 space-y-3 bg-[#FBF7EC]">
@@ -702,7 +689,7 @@ export default function StudentsTab({
                                   setResolveOutcome("");
                                   setResolveForm({
                                     permanentDay: "", permanentTime: "", duration: "", rateType: suggestedRateType, rate: "",
-                                    startDate: todayISO(), scheduleValue: "3", scheduleUnit: "months", skipToNextMonth: false, centre: s.centre || "",
+                                    startDate: todayISO(), scheduleValue: "3", scheduleUnit: "months", billingChoice: "full", centre: s.centre || "",
                                   });
                                 }}
                               >
@@ -734,10 +721,11 @@ export default function StudentsTab({
                                     duration: resolveForm.duration || (matchedSvc ? matchedSvc.duration : 30),
                                     rateType: resolveForm.rateType,
                                     rate: resolveForm.rate !== "" ? resolveForm.rate : previewRate,
-                                    startDate: effectiveStartDate,
+                                    startDate: resolveForm.startDate,
                                     scheduleValue: resolveForm.scheduleValue,
                                     scheduleUnit: resolveForm.scheduleUnit,
                                     centre: resolveForm.centre || s.centre,
+                                    billingChoice: resolveForm.billingChoice,
                                   });
                                   setResolvingTrialFor(null);
                                 }}
@@ -788,20 +776,22 @@ export default function StudentsTab({
                                     </select>
                                   </Field>
                                 </div>
-                                <label className="flex items-center gap-2 text-sm text-[#5C564A]">
-                                  <input type="checkbox" checked={resolveForm.skipToNextMonth} onChange={(e) => setResolveForm({ ...resolveForm, skipToNextMonth: e.target.checked })} />
-                                  Skip pro-rating this month — start billing clean next month instead
-                                </label>
-                                {resolveForm.permanentDay && resolveForm.rateType === "month" && (
-                                  <div className="text-sm bg-white border border-[#EDE7DB] rounded-md p-2.5">
-                                    {prorationPreview === 1 ? (
-                                      <span>Their first month will be billed in full: <strong>{money(previewRate)}</strong>.</span>
-                                    ) : (
-                                      <span>
-                                        Their first month is pro-rated to <strong>{Math.round(prorationPreview * 100)}%</strong> of the monthly rate — that's{" "}
-                                        <strong>{money(previewRate * prorationPreview)}</strong> instead of {money(previewRate)}.
-                                      </span>
-                                    )}
+                                {resolveForm.rateType === "month" && (
+                                  <div className="space-y-1.5">
+                                    <div className="text-xs uppercase tracking-wide text-[#8A8272]">First month billing</div>
+                                    {[
+                                      ["full", "Charge full month", previewRate],
+                                      ["half", "Half month", previewRate / 2],
+                                      ["trial_only", "Only the trial — start billing next month", null],
+                                    ].map(([value, label, amount]) => (
+                                      <label key={value} className="flex items-center gap-2 text-sm border border-[#EDE7DB] rounded-md px-3 py-2 cursor-pointer" style={{ borderColor: resolveForm.billingChoice === value ? "#8A6D3B" : undefined }}>
+                                        <input type="radio" name={`billingChoice-${s.id}`} checked={resolveForm.billingChoice === value} onChange={() => setResolveForm({ ...resolveForm, billingChoice: value })} />
+                                        <span>{label}</span>
+                                        <span className="ml-auto text-[#8A8272]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                                          {amount != null ? money(amount) : "—"}
+                                        </span>
+                                      </label>
+                                    ))}
                                   </div>
                                 )}
                                 <div className="flex gap-2">

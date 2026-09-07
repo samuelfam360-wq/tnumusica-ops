@@ -237,6 +237,11 @@ export function monthlyProrationFactor(student, period) {
   const monthIdx = Number(pmStr) - 1; // JS Date months are 0-indexed
 
   if (student.joined_date && student.joined_date.slice(0, 7) === period) {
+    // An explicit choice made when resolving a trial (Full / Half / clean
+    // next month) always wins over the auto-calculated exact figure —
+    // that's the whole point of offering the simple choice.
+    if (student.first_month_billing === "half") return 0.5;
+    if (student.first_month_billing === "full") return 1;
     if (weekday === undefined) return 1;
     const totalThisMonth = countWeekdayOccurrences(year, monthIdx, weekday, 1);
     if (totalThisMonth === 0) return 1;
